@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Welcome to zForrest</title>
+    <link>https://zwForrest.github.io/</link>
+    <description>Recent content on Welcome to zForrest</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-CN</language>
+    <lastBuildDate>Wed, 30 Oct 2019 15:43:48 +0800</lastBuildDate>
+    
+	<atom:link href="https://zwForrest.github.io/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>About</title>
+      <link>https://zwForrest.github.io/about/</link>
+      <pubDate>Sun, 20 Aug 2017 21:38:52 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/about/</guid>
+      <description>容器、k8s技术追随者。奈何技术更新太快，只能努力学习！！！</description>
+    </item>
+    
+    <item>
+      <title>[Kubernetes] Leaderection</title>
+      <link>https://zwForrest.github.io/post/leaderection/</link>
+      <pubDate>Wed, 30 Oct 2019 15:43:48 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/leaderection/</guid>
+      <description>&lt;h2 id=&#34;介绍&#34;&gt;介绍&lt;/h2&gt;
+&lt;p&gt;关于k8s的kube-scheduler和kube-controller-manager高可用部分，它们使用的选举机制和常用的基于中间件的方式不太一样，在k8s中是基于k8s资源来维护分布式锁。正常的情况下kube-scheduler和kube-controller-manager只有一个副本是处于正常的业务逻辑状态，其他的在一直获取锁，去竞争leader。如果因为某种原因现有的leader退出，或者获取锁失败，则会由其他副本竞争新的leader，并执行正常的业务逻辑。&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>[English] Creating a New Theme</title>
+      <link>https://zwForrest.github.io/post/english-preview/</link>
+      <pubDate>Thu, 31 Aug 2017 15:43:48 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/english-preview/</guid>
+      <description>Introduction This tutorial will show you how to create a simple theme in Hugo. I assume that you are familiar with HTML, the bash command line, and that you are comfortable using Markdown to format content. I&amp;rsquo;ll explain how Hugo uses templates and how you can organize your templates to create a theme. I won&amp;rsquo;t cover using CSS to style your theme. We&amp;rsquo;ll start with creating a new site with</description>
+    </item>
+    
+  </channel>
+</rss>
