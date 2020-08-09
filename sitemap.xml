@@ -9,6 +9,76 @@
   </url>
   
   <url>
+    <loc>https://zwForrest.github.io/post/informer/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/categories/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/tags/client-go/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/tags/docker/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/tags/kubernetes/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/post/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/tags/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/</loc>
+    <lastmod>2020-08-08T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://zwForrest.github.io/post/inplaceupdate/</loc>
+    <lastmod>2020-06-10T12:40:48+08:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
     <loc>https://zwForrest.github.io/post/leaderection/</loc>
     <lastmod>2019-10-31T15:42:48+08:00</lastmod>
     <changefreq>weekly</changefreq>
@@ -16,50 +86,13 @@
   </url>
   
   <url>
-    <loc>https://zwForrest.github.io/categories/</loc>
-    <lastmod>2019-10-31T15:42:48+08:00</lastmod>
+    <loc>https://zwForrest.github.io/post/clientset/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   
   <url>
-    <loc>https://zwForrest.github.io/tags/docker/</loc>
-    <lastmod>2019-10-31T15:42:48+08:00</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <url>
-    <loc>https://zwForrest.github.io/tags/kubernetes/</loc>
-    <lastmod>2019-10-31T15:42:48+08:00</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <url>
-    <loc>https://zwForrest.github.io/post/</loc>
-    <lastmod>2019-10-31T15:42:48+08:00</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <url>
-    <loc>https://zwForrest.github.io/tags/</loc>
-    <lastmod>2019-10-31T15:42:48+08:00</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <url>
-    <loc>https://zwForrest.github.io/</loc>
-    <lastmod>2019-10-31T15:42:48+08:00</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <url>
-    <loc>https://zwForrest.github.io/categories/%E6%8A%80%E6%9C%AF/</loc>
-    <lastmod>2019-10-31T15:42:48+08:00</lastmod>
+    <loc>https://zwForrest.github.io/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>

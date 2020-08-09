@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] pod原地升级 - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="kubelet原地升级实现 在实际的业务需求中，有很多需要能够实现原地升级。只改变镜像名称而不改变其他的配置。在现有的deployment中无法做到，而在kubelet层面其实是能做到原地升级，此时可以自定义operator来实现原地升级。
+" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/inplaceupdate/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] pod原地升级" />
+<meta property="og:description" content="kubelet原地升级实现
+在实际的业务需求中，有很多需要能够实现原地升级。只改变镜像名称而不改变其他的配置。在现有的deployment中无法做到，而在kubelet层面其实是能做到原地升级，此时可以自定义operator来实现原地升级。" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/inplaceupdate/" />
+<meta property="article:published_time" content="2020-06-10T12:40:48+08:00" />
+<meta property="article:modified_time" content="2020-06-10T12:40:48+08:00" />
+<meta itemprop="name" content="[Kubernetes] pod原地升级">
+<meta itemprop="description" content="kubelet原地升级实现
+在实际的业务需求中，有很多需要能够实现原地升级。只改变镜像名称而不改变其他的配置。在现有的deployment中无法做到，而在kubelet层面其实是能做到原地升级，此时可以自定义operator来实现原地升级。">
+<meta itemprop="datePublished" content="2020-06-10T12:40:48+08:00" />
+<meta itemprop="dateModified" content="2020-06-10T12:40:48+08:00" />
+<meta itemprop="wordCount" content="1383">
+
+
+
+<meta itemprop="keywords" content="Docker,Kubernetes,Client-go," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] pod原地升级"/>
+<meta name="twitter:description" content="kubelet原地升级实现
+在实际的业务需求中，有很多需要能够实现原地升级。只改变镜像名称而不改变其他的配置。在现有的deployment中无法做到，而在kubelet层面其实是能做到原地升级，此时可以自定义operator来实现原地升级。"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] pod原地升级</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-06-10 12:40 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 1383 字 </span>
+          <span class="more-meta"> 预计阅读 3 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#kubelet原地升级实现">kubelet原地升级实现</a>
+      <ul>
+        <li><a href="#kubelet内部实现">kubelet内部实现</a></li>
+        <li><a href="#kube-apiserver">kube-apiserver</a></li>
+      </ul>
+    </li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <h2 id="kubelet原地升级实现">kubelet原地升级实现</h2>
+<p>在实际的业务需求中，有很多需要能够实现原地升级。只改变镜像名称而不改变其他的配置。在现有的deployment中无法做到，而在kubelet层面其实是能做到原地升级，此时可以自定义operator来实现原地升级。</p>
+<h3 id="kubelet内部实现">kubelet内部实现</h3>
+<p>在kubelet.Run函数中，启动各种manager，并执行kl.syncLoop(updates, kl)。在syncLoopIteration中将根据config的类型进行相应的处理。传入参数有</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">// 1.  configCh:       a channel to <span class="nb">read</span> config events from
+// 2.  handler:        the SyncHandler to dispatch pods to
+// 3.  syncCh:         a channel to <span class="nb">read</span> periodic sync events from
+// 4.  housekeepingCh: a channel to <span class="nb">read</span> housekeeping events from
+// 5.  plegCh:         a channel to <span class="nb">read</span> PLEG updates from
+</code></pre></td></tr></table>
+</div>
+</div><p>这里主要看handler.HandlePodUpdates。
+通过kl.dispatchWork最终由syncPod完成pod的更新。</p>
+<h4 id="1-计算sandbox和container">1. 计算sandbox和container</h4>
+<p>通过computePodActions来检查pod spec是否发生变化。传入的参数是pod和上一时刻pod的状态。这里先调用podSandboxChanged来判断是否需要重建pod。当podStatus中存在SandboxStatus并且状态为Ready时，不会重建。</p>
+<ul>
+<li>如果需要重建，这里也会先判断Restart状态是否为Never，然后将需要重启的容器加入changes</li>
+<li>如果不需要重建。查看是否有initContainer失败，如果有则会将对应的容器加入changes。如果不是则会计算普通Container。如果容器不处于Running状态则会调用PostStopContainer执行postStop。如果容器不处于Running状态则会将容器加入ContainersToStart。如果容器处于运行状态则会计算容器的hash值来判断容器是否发生变化，如果根据新的container计算出来的值和status中的hash不一样，也会将container加入ContainerToStart。</li>
+</ul>
+<h4 id="2-根据需要重建pod">2. 根据需要重建pod</h4>
+<p>如果上面返回的需要重建则会killpod</p>
+<h4 id="3-kill-container">3. kill container</h4>
+<p>如果上面返回的结果中有需要重建的容器，则会调用killContainer把对应的container删除。</p>
+<h4 id="4-根据需要创建sandbox">4. 根据需要创建Sandbox</h4>
+<p>如果createSandbox为true，则创建新的sandbox。</p>
+<h4 id="5-启动-ephemeral-container">5. 启动 ephemeral container</h4>
+<p>ephemeral container这个功能在1.16之后才有，<a href="https://www.bookstack.cn/read/kubernetes-1.16-zh/64a80c6f60ff5726.md">参考文档</a>。</p>
+<h4 id="6-启动-init-container">6. 启动 init container</h4>
+<p>这里根据podContainerChanges中的NextInitContainerToStart来启动对应的InitContainer</p>
+<h4 id="7-启动业务-container">7. 启动业务 container</h4>
+<p>根据podContainerChanges中的ContainersToStart启动对应的container。</p>
+<h3 id="kube-apiserver">kube-apiserver</h3>
+<p>kube-apiserver在修改一个已经存在的pod，并不是所有的pod字段都能更新。只有如下几个字段能修改。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell"><span class="sb">`</span>spec.containers<span class="o">[</span>*<span class="o">]</span>.image<span class="sb">`</span>, <span class="sb">`</span>spec.initContainers<span class="o">[</span>*<span class="o">]</span>.image<span class="sb">`</span>, <span class="sb">`</span>spec.activeDeadlineSeconds<span class="sb">`</span> or <span class="sb">`</span>spec.tolerations<span class="sb">`</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>测试修改spec.schedulerName字段会得到如下错误信息。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell"><span class="c1"># Please edit the object below. Lines beginning with a &#39;#&#39; will be ignored,</span>
+<span class="c1"># and an empty file will abort the edit. If an error occurs while saving this file will be</span>
+<span class="c1"># reopened with the relevant failures.</span>
+#
+<span class="c1"># pods &#34;test-pod&#34; was not valid:</span>
+<span class="c1"># * spec: Forbidden: pod updates may not change fields other than `spec.containers[*].image`, `spec.initContainers[*].image`, `spec.activeDeadlineSeconds` or `spec.tolerations` (only additions to existing tolerations)</span>
+<span class="c1"># {&#34;Volumes&#34;:[{&#34;Name&#34;:&#34;default-token-v7scp&#34;,&#34;HostPath&#34;:null,&#34;EmptyDir&#34;:null,&#34;GCEPersistentDisk&#34;:null,&#34;AWSElasticBlockStore&#34;:null,&#34;GitRepo&#34;:null,&#34;Secret&#34;:{&#34;SecretName&#34;:&#34;default-token-v7scp&#34;,&#34;Items&#34;:null,&#34;DefaultMode&#34;:420,&#34;Optional&#34;:nu</span>
+ll<span class="o">}</span>,<span class="s2">&#34;NFS&#34;</span>:null,<span class="s2">&#34;ISCSI&#34;</span>:null,<span class="s2">&#34;Glusterfs&#34;</span>:null,<span class="s2">&#34;PersistentVolumeClaim&#34;</span>:null,<span class="s2">&#34;RBD&#34;</span>:null,<span class="s2">&#34;Quobyte&#34;</span>:null,<span class="s2">&#34;FlexVolume&#34;</span>:null,<span class="s2">&#34;Cinder&#34;</span>:null,<span class="s2">&#34;CephFS&#34;</span>:null,<span class="s2">&#34;Flocker&#34;</span>:null,<span class="s2">&#34;DownwardAPI&#34;</span>:null,<span class="s2">&#34;FC&#34;</span>:null,<span class="s2">&#34;AzureFile&#34;</span>:null,<span class="s2">&#34;ConfigMap&#34;</span>:null,<span class="s2">&#34;VsphereV
+</span><span class="s2">olume&#34;</span>:null,<span class="s2">&#34;AzureDisk&#34;</span>:null,<span class="s2">&#34;PhotonPersistentDisk&#34;</span>:null,<span class="s2">&#34;Projected&#34;</span>:null,<span class="s2">&#34;PortworxVolume&#34;</span>:null,<span class="s2">&#34;ScaleIO&#34;</span>:null,<span class="s2">&#34;StorageOS&#34;</span>:null,<span class="s2">&#34;CSI&#34;</span>:null<span class="o">}]</span>,<span class="s2">&#34;InitContainers&#34;</span>:null,<span class="s2">&#34;Containers&#34;</span>:<span class="o">[{</span><span class="s2">&#34;Name&#34;</span>:<span class="s2">&#34;test&#34;</span>,<span class="s2">&#34;Image&#34;</span>:<span class="s2">&#34;r.addops.soft.360.cn/library/cen
+</span><span class="s2">tos-74-el7-official-addops:latest&#34;</span>,<span class="s2">&#34;Command&#34;</span>:null,<span class="s2">&#34;Args&#34;</span>:null,<span class="s2">&#34;WorkingDir&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;Ports&#34;</span>:null,<span class="s2">&#34;EnvFrom&#34;</span>:null,<span class="s2">&#34;Env&#34;</span>:null,<span class="s2">&#34;Resources&#34;</span>:<span class="o">{</span><span class="s2">&#34;Limits&#34;</span>:null,<span class="s2">&#34;Requests&#34;</span>:null<span class="o">}</span>,<span class="s2">&#34;VolumeMounts&#34;</span>:<span class="o">[{</span><span class="s2">&#34;Name&#34;</span>:<span class="s2">&#34;default-token-v7scp&#34;</span>,<span class="s2">&#34;ReadOnly&#34;</span>:true,<span class="s2">&#34;MountPath
+</span><span class="s2">&#34;</span>:<span class="s2">&#34;/var/run/secrets/kubernetes.io/serviceaccount&#34;</span>,<span class="s2">&#34;SubPath&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;MountPropagation&#34;</span>:null,<span class="s2">&#34;SubPathExpr&#34;</span>:<span class="s2">&#34;&#34;</span><span class="o">}]</span>,<span class="s2">&#34;VolumeDevices&#34;</span>:null,<span class="s2">&#34;LivenessProbe&#34;</span>:null,<span class="s2">&#34;ReadinessProbe&#34;</span>:null,<span class="s2">&#34;Lifecycle&#34;</span>:null,<span class="s2">&#34;TerminationMessagePath&#34;</span>:<span class="s2">&#34;/dev/termination-log
+</span><span class="s2">&#34;</span>,<span class="s2">&#34;TerminationMessagePolicy&#34;</span>:<span class="s2">&#34;File&#34;</span>,<span class="s2">&#34;ImagePullPolicy&#34;</span>:<span class="s2">&#34;Always&#34;</span>,<span class="s2">&#34;SecurityContext&#34;</span>:null,<span class="s2">&#34;Stdin&#34;</span>:false,<span class="s2">&#34;StdinOnce&#34;</span>:false,<span class="s2">&#34;TTY&#34;</span>:false<span class="o">}]</span>,<span class="s2">&#34;RestartPolicy&#34;</span>:<span class="s2">&#34;Always&#34;</span>,<span class="s2">&#34;TerminationGracePeriodSeconds&#34;</span>:30,<span class="s2">&#34;ActiveDeadlineSeconds&#34;</span>:null,<span class="s2">&#34;DNSPolicy&#34;</span>:
+<span class="s2">&#34;ClusterFirst&#34;</span>,<span class="s2">&#34;NodeSelector&#34;</span>:null,<span class="s2">&#34;ServiceAccountName&#34;</span>:<span class="s2">&#34;default&#34;</span>,<span class="s2">&#34;AutomountServiceAccountToken&#34;</span>:null,<span class="s2">&#34;NodeName&#34;</span>:<span class="s2">&#34;stark09.add.bjyt.qihoo.net&#34;</span>,<span class="s2">&#34;SecurityContext&#34;</span>:<span class="o">{</span><span class="s2">&#34;HostNetwork&#34;</span>:false,<span class="s2">&#34;HostPID&#34;</span>:false,<span class="s2">&#34;HostIPC&#34;</span>:false,<span class="s2">&#34;ShareProcessNamespa
+</span><span class="s2">ce&#34;</span>:null,<span class="s2">&#34;SELinuxOptions&#34;</span>:null,<span class="s2">&#34;RunAsUser&#34;</span>:null,<span class="s2">&#34;RunAsGroup&#34;</span>:null,<span class="s2">&#34;RunAsNonRoot&#34;</span>:null,<span class="s2">&#34;SupplementalGroups&#34;</span>:null,<span class="s2">&#34;FSGroup&#34;</span>:null,<span class="s2">&#34;Sysctls&#34;</span>:null<span class="o">}</span>,<span class="s2">&#34;ImagePullSecrets&#34;</span>:null,<span class="s2">&#34;Hostname&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;Subdomain&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;Affinity&#34;</span>:null,<span class="s2">&#34;SchedulerName&#34;</span>:<span class="s2">&#34;
+</span><span class="s2">#
+</span><span class="s2"># A: scheduler&#34;</span>,<span class="s2">&#34;Tolerations&#34;</span>:<span class="o">[{</span><span class="s2">&#34;Key&#34;</span>:<span class="s2">&#34;node.kubernetes.io/not-ready&#34;</span>,<span class="s2">&#34;Operator&#34;</span>:<span class="s2">&#34;Exists&#34;</span>,<span class="s2">&#34;Value&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;Effect&#34;</span>:<span class="s2">&#34;NoExecute&#34;</span>,<span class="s2">&#34;TolerationSeconds&#34;</span>:300<span class="o">}</span>,<span class="o">{</span><span class="s2">&#34;Key&#34;</span>:<span class="s2">&#34;node.kubernetes.io/unreachable&#34;</span>,<span class="s2">&#34;Operator&#34;</span>:<span class="s2">&#34;Exists&#34;</span>,<span class="s2">&#34;Value&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;Effect&#34;</span>:<span class="s2">&#34;NoExec
+</span><span class="s2">ute&#34;</span>,<span class="s2">&#34;TolerationSeconds&#34;</span>:300<span class="o">}]</span>,<span class="s2">&#34;HostAliases&#34;</span>:null,<span class="s2">&#34;PriorityClassName&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;Priority&#34;</span>:null,<span class="s2">&#34;DNSConfig&#34;</span>:null,<span class="s2">&#34;ReadinessGates&#34;</span>:null,<span class="s2">&#34;RuntimeClassName&#34;</span>:null,<span class="s2">&#34;EnableServiceLinks&#34;</span>:true<span class="o">}</span>
+#
+<span class="c1"># B: default-scheduler&#34;,&#34;Tolerations&#34;:[{&#34;Key&#34;:&#34;node.kubernetes.io/not-ready&#34;,&#34;Operator&#34;:&#34;Exists&#34;,&#34;Value&#34;:&#34;&#34;,&#34;Effect&#34;:&#34;NoExecute&#34;,&#34;TolerationSeconds&#34;:300},{&#34;Key&#34;:&#34;node.kubernetes.io/unreachable&#34;,&#34;Operator&#34;:&#34;Exists&#34;,&#34;Value&#34;:&#34;&#34;,&#34;Effect&#34;</span>
+:<span class="s2">&#34;NoExecute&#34;</span>,<span class="s2">&#34;TolerationSeconds&#34;</span>:300<span class="o">}]</span>,<span class="s2">&#34;HostAliases&#34;</span>:null,<span class="s2">&#34;PriorityClassName&#34;</span>:<span class="s2">&#34;&#34;</span>,<span class="s2">&#34;Priority&#34;</span>:null,<span class="s2">&#34;DNSConfig&#34;</span>:null,<span class="s2">&#34;ReadinessGates&#34;</span>:null,<span class="s2">&#34;RuntimeClassName&#34;</span>:null,<span class="s2">&#34;EnableServiceLinks&#34;</span>:true<span class="o">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h2 id="总结">总结</h2>
+<p>以上就是pod实现原地升级背后的相关知识，如果想通过类似deployment实现相关功能可以通过自定义CRD来实现。</p>
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-06-10 12:40
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/docker/">Docker</a>
+          <a href="/tags/kubernetes/">Kubernetes</a>
+          <a href="/tags/client-go/">Client-go</a>
+          </div>
+      <nav class="post-nav">
+        <a class="prev" href="/post/informer/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">[Kubernetes] Client-go分析</span>
+            <span class="prev-text nav-mobile">上一篇</span>
+          </a>
+        <a class="next" href="/post/leaderection/">
+            <span class="next-text nav-default">[Kubernetes] Leaderection</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="mailto:your@email.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>

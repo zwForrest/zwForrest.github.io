@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title> - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="Index结构分析 title: &amp;ldquo;[中文] 《长恨歌》&amp;rdquo; date: 2017-08-30T01:37:56&#43;08:00 lastmod: 2017-08-30T01:37:56&#43;08:00 draft: true tags: [&amp;ldquo;preview&amp;rdquo;, &amp;ldquo;中文&amp;rdquo;, &amp;ldquo;tag-1&amp;rdquo;] categories: [&amp;ldquo;中文" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="" />
+<meta property="og:description" content="Index结构分析 title: &ldquo;[中文] 《长恨歌》&rdquo; date: 2017-08-30T01:37:56&#43;08:00 lastmod: 2017-08-30T01:37:56&#43;08:00 draft: true tags: [&ldquo;preview&rdquo;, &ldquo;中文&rdquo;, &ldquo;tag-1&rdquo;] categories: [&ldquo;中文" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/" />
+
+<meta itemprop="name" content="">
+<meta itemprop="description" content="Index结构分析 title: &ldquo;[中文] 《长恨歌》&rdquo; date: 2017-08-30T01:37:56&#43;08:00 lastmod: 2017-08-30T01:37:56&#43;08:00 draft: true tags: [&ldquo;preview&rdquo;, &ldquo;中文&rdquo;, &ldquo;tag-1&rdquo;] categories: [&ldquo;中文">
+
+<meta itemprop="wordCount" content="1176">
+
+
+
+<meta itemprop="keywords" content="" />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content=""/>
+<meta name="twitter:description" content="Index结构分析 title: &ldquo;[中文] 《长恨歌》&rdquo; date: 2017-08-30T01:37:56&#43;08:00 lastmod: 2017-08-30T01:37:56&#43;08:00 draft: true tags: [&ldquo;preview&rdquo;, &ldquo;中文&rdquo;, &ldquo;tag-1&rdquo;] categories: [&ldquo;中文"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title"></h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 0001-01-01 00:00 </span>
+        
+          <span class="more-meta"> 约 1176 字 </span>
+          <span class="more-meta"> 预计阅读 3 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#author-wikipedia">title: &ldquo;[中文] 《长恨歌》&rdquo;
+date: 2017-08-30T01:37:56+08:00
+lastmod: 2017-08-30T01:37:56+08:00
+draft: true
+tags: [&ldquo;preview&rdquo;, &ldquo;中文&rdquo;, &ldquo;tag-1&rdquo;]
+categories: [&ldquo;中文&rdquo;]
+author: &ldquo;Wikipedia&rdquo;</a></li>
+    <li><a href="#index结构">Index结构</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <h1 id="index结构分析">Index结构分析</h1>
+<hr>
+<h2 id="author-wikipedia">title: &ldquo;[中文] 《长恨歌》&rdquo;
+date: 2017-08-30T01:37:56+08:00
+lastmod: 2017-08-30T01:37:56+08:00
+draft: true
+tags: [&ldquo;preview&rdquo;, &ldquo;中文&rdquo;, &ldquo;tag-1&rdquo;]
+categories: [&ldquo;中文&rdquo;]
+author: &ldquo;Wikipedia&rdquo;</h2>
+<h2 id="index结构">Index结构</h2>
+<p>在这里Index存储接口的具体实现是cache。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">cache</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="c1">// cacheStorage bears the burden of thread safety for the cache
+</span><span class="c1"></span>	<span class="nx">cacheStorage</span> <span class="nx">ThreadSafeStore</span>
+	<span class="c1">// keyFunc is used to make the key for objects stored in and retrieved from items, and
+</span><span class="c1"></span>	<span class="c1">// should be deterministic.
+</span><span class="c1"></span>	<span class="c1">//这个keyFunc是后面用来获取对应的obj对象的，默认是namespace/name
+</span><span class="c1"></span>	<span class="nx">keyFunc</span> <span class="nx">KeyFunc</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>Index接口</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">Indexer</span> <span class="kd">interface</span> <span class="p">{</span>
+	<span class="nx">Store</span>
+	<span class="c1">// Index returns the stored objects whose set of indexed values
+</span><span class="c1"></span>	<span class="c1">// intersects the set of indexed values of the given object, for
+</span><span class="c1"></span>	<span class="c1">// the named index
+</span><span class="c1"></span>	<span class="nf">Index</span><span class="p">(</span><span class="nx">indexName</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">obj</span> <span class="kd">interface</span><span class="p">{})</span> <span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span>
+	<span class="c1">// IndexKeys returns the storage keys of the stored objects whose
+</span><span class="c1"></span>	<span class="c1">// set of indexed values for the named index includes the given
+</span><span class="c1"></span>	<span class="c1">// indexed value
+</span><span class="c1"></span>	<span class="nf">IndexKeys</span><span class="p">(</span><span class="nx">indexName</span><span class="p">,</span> <span class="nx">indexedValue</span> <span class="kt">string</span><span class="p">)</span> <span class="p">([]</span><span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span>
+	<span class="c1">// ListIndexFuncValues returns all the indexed values of the given index
+</span><span class="c1"></span>	<span class="nf">ListIndexFuncValues</span><span class="p">(</span><span class="nx">indexName</span> <span class="kt">string</span><span class="p">)</span> <span class="p">[]</span><span class="kt">string</span>
+	<span class="c1">// ByIndex returns the stored objects whose set of indexed values
+</span><span class="c1"></span>	<span class="c1">// for the named index includes the given indexed value
+</span><span class="c1"></span>	<span class="nf">ByIndex</span><span class="p">(</span><span class="nx">indexName</span><span class="p">,</span> <span class="nx">indexedValue</span> <span class="kt">string</span><span class="p">)</span> <span class="p">([]</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span>
+	<span class="c1">// GetIndexer return the indexers
+</span><span class="c1"></span>	<span class="nf">GetIndexers</span><span class="p">()</span> <span class="nx">Indexers</span>
+
+	<span class="c1">// AddIndexers adds more indexers to this store.  If you call this after you already have data
+</span><span class="c1"></span>	<span class="c1">// in the store, the results are undefined.
+</span><span class="c1"></span>	<span class="nf">AddIndexers</span><span class="p">(</span><span class="nx">newIndexers</span> <span class="nx">Indexers</span><span class="p">)</span> <span class="kt">error</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>cache中的cacheStorage则是通过threadSafeMap实现，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">threadSafeMap</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">lock</span>  <span class="nx">sync</span><span class="p">.</span><span class="nx">RWMutex</span>
+	<span class="nx">items</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">interface</span><span class="p">{}</span>
+
+	<span class="c1">// indexers maps a name to an IndexFunc
+</span><span class="c1"></span>	<span class="nx">indexers</span> <span class="nx">Indexers</span>
+	<span class="c1">// indices maps a name to an Index
+</span><span class="c1"></span>	<span class="nx">indices</span> <span class="nx">Indices</span>
+<span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">Index</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">sets</span><span class="p">.</span><span class="nx">String</span>
+
+<span class="c1">// Indexers maps a name to a IndexFunc
+</span><span class="c1"></span><span class="kd">type</span> <span class="nx">Indexers</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">IndexFunc</span>
+
+<span class="c1">// Indices maps a name to an Index
+</span><span class="c1"></span><span class="kd">type</span> <span class="nx">Indices</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">Index</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>默认的Indexers是<code>cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}</code>。其中key是<code>namespace</code>，value是获取object对象namespace的函数。
+此时通过一个对象更新操作分析这些结构的关系。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">//先遍历indexers中的索引函数，默认是namespace
+</span><span class="c1"></span><span class="k">for</span> <span class="nx">name</span><span class="p">,</span> <span class="nx">indexFunc</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">c</span><span class="p">.</span><span class="nx">indexers</span> <span class="p">{</span>
+<span class="c1">//由indexFunc获取需要操作的对象namespace
+</span><span class="c1"></span>		<span class="nx">indexValues</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">indexFunc</span><span class="p">(</span><span class="nx">newObj</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nb">panic</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;unable to calculate an index entry for key %q on index %q: %v&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="nx">name</span><span class="p">,</span> <span class="nx">err</span><span class="p">))</span>
+		<span class="p">}</span>
+<span class="c1">//从indices中获取对应indexFunc的所有索引，默认是namespace，如果不存在就创建。
+</span><span class="c1"></span>		<span class="nx">index</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">indices</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span>
+		<span class="k">if</span> <span class="nx">index</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">index</span> <span class="p">=</span> <span class="nx">Index</span><span class="p">{}</span>
+			<span class="nx">c</span><span class="p">.</span><span class="nx">indices</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span> <span class="p">=</span> <span class="nx">index</span>
+		<span class="p">}</span>
+<span class="c1">//通过namespace索引获取到Indexers结构，这个结构里存放的是每个namespace的所有key，这里的key默认都是namespace/name结构，如果不存在则把这个key添加到Indexers对应的namespace中。
+</span><span class="c1"></span>		<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">indexValue</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">indexValues</span> <span class="p">{</span>
+			<span class="nx">set</span> <span class="o">:=</span> <span class="nx">index</span><span class="p">[</span><span class="nx">indexValue</span><span class="p">]</span>
+			<span class="k">if</span> <span class="nx">set</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">set</span> <span class="p">=</span> <span class="nx">sets</span><span class="p">.</span><span class="nx">String</span><span class="p">{}</span>
+				<span class="nx">index</span><span class="p">[</span><span class="nx">indexValue</span><span class="p">]</span> <span class="p">=</span> <span class="nx">set</span>
+			<span class="p">}</span>
+			<span class="nx">set</span><span class="p">.</span><span class="nf">Insert</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>indexers中存的是获取索引的函数，map[name]IndexFunc形式。
+Indices是存的obj对应的索引。形式是map[string]Index，这个map的key和indexers中的是一一对应。obj根据IndexFunc计算出来的索引去Index中查存储在items中的key，默认是namespace/objname的形式，如果没有namespace则前面是空。然后再拿key去items中查对应的值。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        0001-01-01 00:00
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      
+      <nav class="post-nav">
+        <a class="prev" href="/post/clientset/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default"></span>
+            <span class="prev-text nav-mobile">上一篇</span>
+          </a>
+        
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="mailto:your@email.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
