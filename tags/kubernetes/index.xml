@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Kubernetes on Welcome to zForrest</title>
+    <title>kubernetes on Welcome to zForrest</title>
     <link>https://zwForrest.github.io/tags/kubernetes/</link>
-    <description>Recent content in Kubernetes on Welcome to zForrest</description>
+    <description>Recent content in kubernetes on Welcome to zForrest</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-CN</language>
     <lastBuildDate>Tue, 18 Aug 2020 18:33:56 +0800</lastBuildDate>
@@ -45,6 +45,15 @@
       
       <guid>https://zwForrest.github.io/post/informer/</guid>
       <description>Client-go客户端 主要介绍四种Client RESTClient是最基础的Client，它将HTTP client封装成RESTful风格</description>
+    </item>
+    
+    <item>
+      <title>[kubernetes] Client</title>
+      <link>https://zwForrest.github.io/post/clientset/</link>
+      <pubDate>Sat, 01 Aug 2020 01:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/clientset/</guid>
+      <description>Client-go客户端 这里主要提供五种客户端 RESTClient是最基础的Client，它将HTTP client封装成RESTful风格的</description>
     </item>
     
     <item>

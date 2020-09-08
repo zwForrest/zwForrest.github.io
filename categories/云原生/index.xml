@@ -48,6 +48,15 @@
     </item>
     
     <item>
+      <title>[kubernetes] Client</title>
+      <link>https://zwForrest.github.io/post/clientset/</link>
+      <pubDate>Sat, 01 Aug 2020 01:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/clientset/</guid>
+      <description>Client-go客户端 这里主要提供五种客户端 RESTClient是最基础的Client，它将HTTP client封装成RESTful风格的</description>
+    </item>
+    
+    <item>
       <title>[Kubernetes] pod原地升级</title>
       <link>https://zwForrest.github.io/post/inplaceupdate/</link>
       <pubDate>Wed, 10 Jun 2020 12:40:48 +0800</pubDate>

@@ -48,6 +48,15 @@
     </item>
     
     <item>
+      <title>[kubernetes] Client</title>
+      <link>https://zwForrest.github.io/post/clientset/</link>
+      <pubDate>Sat, 01 Aug 2020 01:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/clientset/</guid>
+      <description>Client-go客户端 这里主要提供五种客户端 RESTClient是最基础的Client，它将HTTP client封装成RESTful风格的</description>
+    </item>
+    
+    <item>
       <title>[Kubernetes] pod原地升级</title>
       <link>https://zwForrest.github.io/post/inplaceupdate/</link>
       <pubDate>Wed, 10 Jun 2020 12:40:48 +0800</pubDate>
@@ -65,15 +74,6 @@
       <guid>https://zwForrest.github.io/post/leaderection/</guid>
       <description>&lt;h2 id=&#34;介绍&#34;&gt;介绍&lt;/h2&gt;
 &lt;p&gt;关于k8s的kube-scheduler和kube-controller-manager高可用部分，它们使用的选举机制和常用的基于中间件的方式不太一样，在k8s中是基于k8s资源来维护分布式锁。正常的情况下kube-scheduler和kube-controller-manager只有一个副本是处于正常的业务逻辑状态，其他的在一直获取锁，去竞争leader。如果因为某种原因现有的leader退出，或者获取锁失败，则会由其他副本竞争新的leader，并执行正常的业务逻辑。&lt;/p&gt;</description>
-    </item>
-    
-    <item>
-      <title>[kubernetes] Client</title>
-      <link>https://zwForrest.github.io/post/clientset/</link>
-      <pubDate>Wed, 30 Aug 2017 01:37:56 +0800</pubDate>
-      
-      <guid>https://zwForrest.github.io/post/clientset/</guid>
-      <description>Client-go客户端 这里主要提供五种客户端 RESTClient是最基础的Client，它将HTTP client封装成RESTful风格的</description>
     </item>
     
   </channel>

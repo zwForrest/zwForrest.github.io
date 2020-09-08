@@ -30,7 +30,7 @@
     </item>
     
     <item>
-      <title>Kubernetes</title>
+      <title>kubernetes</title>
       <link>https://zwForrest.github.io/tags/kubernetes/</link>
       <pubDate>Tue, 18 Aug 2020 18:33:56 +0800</pubDate>
       
@@ -93,29 +93,11 @@
     </item>
     
     <item>
-      <title>preview</title>
-      <link>https://zwForrest.github.io/tags/preview/</link>
-      <pubDate>Wed, 30 Aug 2017 01:37:56 +0800</pubDate>
+      <title>ClientSet</title>
+      <link>https://zwForrest.github.io/tags/clientset/</link>
+      <pubDate>Sat, 01 Aug 2020 01:37:56 +0800</pubDate>
       
-      <guid>https://zwForrest.github.io/tags/preview/</guid>
-      <description></description>
-    </item>
-    
-    <item>
-      <title>tag-1</title>
-      <link>https://zwForrest.github.io/tags/tag-1/</link>
-      <pubDate>Wed, 30 Aug 2017 01:37:56 +0800</pubDate>
-      
-      <guid>https://zwForrest.github.io/tags/tag-1/</guid>
-      <description></description>
-    </item>
-    
-    <item>
-      <title>中文</title>
-      <link>https://zwForrest.github.io/tags/%E4%B8%AD%E6%96%87/</link>
-      <pubDate>Wed, 30 Aug 2017 01:37:56 +0800</pubDate>
-      
-      <guid>https://zwForrest.github.io/tags/%E4%B8%AD%E6%96%87/</guid>
+      <guid>https://zwForrest.github.io/tags/clientset/</guid>
       <description></description>
     </item>
     
