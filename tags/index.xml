@@ -6,17 +6,80 @@
     <description>Recent content in Tags on Welcome to zForrest</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-CN</language>
-    <lastBuildDate>Sat, 08 Aug 2020 12:40:48 +0800</lastBuildDate>
+    <lastBuildDate>Tue, 18 Aug 2020 18:33:56 +0800</lastBuildDate>
     
 	<atom:link href="https://zwForrest.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
     
     
     <item>
+      <title>etcd</title>
+      <link>https://zwForrest.github.io/tags/etcd/</link>
+      <pubDate>Tue, 18 Aug 2020 18:33:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/etcd/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kube-apiserver</title>
+      <link>https://zwForrest.github.io/tags/kube-apiserver/</link>
+      <pubDate>Tue, 18 Aug 2020 18:33:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kube-apiserver/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Kubernetes</title>
+      <link>https://zwForrest.github.io/tags/kubernetes/</link>
+      <pubDate>Tue, 18 Aug 2020 18:33:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kubernetes/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>cni</title>
+      <link>https://zwForrest.github.io/tags/cni/</link>
+      <pubDate>Tue, 11 Aug 2020 11:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/cni/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>cri</title>
+      <link>https://zwForrest.github.io/tags/cri/</link>
+      <pubDate>Tue, 11 Aug 2020 11:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/cri/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kubelet</title>
+      <link>https://zwForrest.github.io/tags/kubelet/</link>
+      <pubDate>Tue, 11 Aug 2020 11:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kubelet/</guid>
+      <description></description>
+    </item>
+    
+    <item>
       <title>Client-go</title>
       <link>https://zwForrest.github.io/tags/client-go/</link>
-      <pubDate>Sat, 08 Aug 2020 12:40:48 +0800</pubDate>
+      <pubDate>Sun, 09 Aug 2020 01:37:56 +0800</pubDate>
       
       <guid>https://zwForrest.github.io/tags/client-go/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Index</title>
+      <link>https://zwForrest.github.io/tags/index/</link>
+      <pubDate>Sun, 09 Aug 2020 01:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/index/</guid>
       <description></description>
     </item>
     
@@ -30,11 +93,29 @@
     </item>
     
     <item>
-      <title>Kubernetes</title>
-      <link>https://zwForrest.github.io/tags/kubernetes/</link>
-      <pubDate>Sat, 08 Aug 2020 12:40:48 +0800</pubDate>
+      <title>preview</title>
+      <link>https://zwForrest.github.io/tags/preview/</link>
+      <pubDate>Wed, 30 Aug 2017 01:37:56 +0800</pubDate>
       
-      <guid>https://zwForrest.github.io/tags/kubernetes/</guid>
+      <guid>https://zwForrest.github.io/tags/preview/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>tag-1</title>
+      <link>https://zwForrest.github.io/tags/tag-1/</link>
+      <pubDate>Wed, 30 Aug 2017 01:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/tag-1/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>中文</title>
+      <link>https://zwForrest.github.io/tags/%E4%B8%AD%E6%96%87/</link>
+      <pubDate>Wed, 30 Aug 2017 01:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/%E4%B8%AD%E6%96%87/</guid>
       <description></description>
     </item>
     

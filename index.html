@@ -45,7 +45,7 @@
 <meta property="og:description" content="Hugo theme even example site." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://zwForrest.github.io/" />
-<meta property="og:updated_time" content="2020-08-08T12:40:48+08:00" />
+<meta property="og:updated_time" content="2020-08-18T18:33:56+08:00" />
 <meta itemprop="name" content="Welcome to zForrest">
 <meta itemprop="description" content="Hugo theme even example site.">
 <meta name="twitter:card" content="summary"/>
@@ -117,6 +117,75 @@
           <section id="posts" class="posts">
     <article class="post">
   <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/">[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2020-08-18 18:33 </span>
+      <div class="post-category">
+          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+          </div>
+        <span class="more-meta"> 约 2728 字 </span>
+        <span class="more-meta"> 预计阅读 6 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      ##架构分析 在Kubernetes中所有的数据都是存储在ETCD中，而只有kube-apiserver会和ETCD进行交互，其他组件都是通过
+    </div>
+    <div class="read-more">
+      <a href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
+    <article class="post">
+  <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/">[Kubernetes] Kubelet之CRI和CNI调用分析</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2020-08-11 11:37 </span>
+      <div class="post-category">
+          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+          </div>
+        <span class="more-meta"> 约 5753 字 </span>
+        <span class="more-meta"> 预计阅读 12 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      架构 kubelet架构如图所示 默认docker模式的调用关系 源码分析 接下来从代码层面分析一下kubelet中CRI和CNI的逻辑关系。 首先在
+    </div>
+    <div class="read-more">
+      <a href="/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
+    <article class="post">
+  <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/">[Kubernetes]Index结构分析</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2020-08-09 01:37 </span>
+      <div class="post-category">
+          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+          </div>
+        <span class="more-meta"> 约 1096 字 </span>
+        <span class="more-meta"> 预计阅读 3 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      Index结构 在这里Index存储接口的具体实现是cache。 1 2 3 4 5 6 7 8 type cache struct { // cacheStorage bears the burden of thread safety for the cache cacheStorage ThreadSafeStore // keyFunc is used to make the key for objects stored in and retrieved
+    </div>
+    <div class="read-more">
+      <a href="/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
+    <article class="post">
+  <header class="post-header">
     <h1 class="post-title"><a class="post-link" href="/post/informer/">[Kubernetes] Client-go分析</a></h1>
     <div class="post-meta">
       <span class="post-time"> 2020-08-08 12:40 </span>
@@ -162,35 +231,14 @@
   </div>
 </article>
 
-    <article class="post">
-  <header class="post-header">
-    <h1 class="post-title"><a class="post-link" href="/post/leaderection/">[Kubernetes] Leaderection</a></h1>
-    <div class="post-meta">
-      <span class="post-time"> 2019-10-30 15:43 </span>
-      <div class="post-category">
-          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
-          </div>
-        <span class="more-meta"> 约 352 字 </span>
-        <span class="more-meta"> 预计阅读 1 分钟 </span>
-    </div>
-  </header>
-  
-  <div class="post-content">
-    <div class="post-summary">
-      <h2 id="介绍">介绍</h2>
-<p>关于k8s的kube-scheduler和kube-controller-manager高可用部分，它们使用的选举机制和常用的基于中间件的方式不太一样，在k8s中是基于k8s资源来维护分布式锁。正常的情况下kube-scheduler和kube-controller-manager只有一个副本是处于正常的业务逻辑状态，其他的在一直获取锁，去竞争leader。如果因为某种原因现有的leader退出，或者获取锁失败，则会由其他副本竞争新的leader，并执行正常的业务逻辑。</p>
-    </div>
-    <div class="read-more">
-      <a href="/post/leaderection/" class="read-more-link">阅读更多</a>
-    </div>
-  </div>
-</article>
-
     </section>
   
   <nav class="pagination">
     
-    
+    <a class="next" href="/page/2/">
+        <span class="next-text">下一页</span>
+        <i class="iconfont icon-right"></i>
+      </a>
   </nav>
         </div>
         

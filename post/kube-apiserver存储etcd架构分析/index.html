@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] Kube-apiserver存储ETCD架构及源码分析 - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="##架构分析 在Kubernetes中所有的数据都是存储在ETCD中，而只有kube-apiserver会和ETCD进行交互，其他组件都是通过" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] Kube-apiserver存储ETCD架构及源码分析" />
+<meta property="og:description" content="##架构分析 在Kubernetes中所有的数据都是存储在ETCD中，而只有kube-apiserver会和ETCD进行交互，其他组件都是通过" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/" />
+<meta property="article:published_time" content="2020-08-18T18:33:56+08:00" />
+<meta property="article:modified_time" content="2020-08-18T18:33:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] Kube-apiserver存储ETCD架构及源码分析">
+<meta itemprop="description" content="##架构分析 在Kubernetes中所有的数据都是存储在ETCD中，而只有kube-apiserver会和ETCD进行交互，其他组件都是通过">
+<meta itemprop="datePublished" content="2020-08-18T18:33:56+08:00" />
+<meta itemprop="dateModified" content="2020-08-18T18:33:56+08:00" />
+<meta itemprop="wordCount" content="2728">
+
+
+
+<meta itemprop="keywords" content="kubernetes,kube-apiserver,etcd," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] Kube-apiserver存储ETCD架构及源码分析"/>
+<meta name="twitter:description" content="##架构分析 在Kubernetes中所有的数据都是存储在ETCD中，而只有kube-apiserver会和ETCD进行交互，其他组件都是通过"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-08-18 18:33 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 2728 字 </span>
+          <span class="more-meta"> 预计阅读 6 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#实例分析">实例分析</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <p>##架构分析
+在Kubernetes中所有的数据都是存储在ETCD中，而只有kube-apiserver会和ETCD进行交互，其他组件都是通过kube-apiserver间接和ETCD通信。kube-apiserver和ETCD交互的架构如下如所示(图片来源郑东旭《Kubernetes源码分析》)。
+<figure>
+    <img src="../images/ETCD%e5%ad%98%e5%82%a8%e6%9e%b6%e6%9e%84.png"/> 
+</figure>
+</p>
+<h2 id="实例分析">实例分析</h2>
+<p>这里以pod类型为例，<code>NewStore</code>函数创建pod类型的PodStorage，这里先初始化了一个<code>genericregistry.Store</code>结构，这个是核心部分。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">store</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">genericregistry</span><span class="p">.</span><span class="nx">Store</span><span class="p">{</span>
+		<span class="nx">NewFunc</span><span class="p">:</span>                  <span class="kd">func</span><span class="p">()</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span> <span class="p">{</span> <span class="k">return</span> <span class="o">&amp;</span><span class="nx">api</span><span class="p">.</span><span class="nx">Pod</span><span class="p">{}</span> <span class="p">},</span>
+		<span class="nx">NewListFunc</span><span class="p">:</span>              <span class="kd">func</span><span class="p">()</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span> <span class="p">{</span> <span class="k">return</span> <span class="o">&amp;</span><span class="nx">api</span><span class="p">.</span><span class="nx">PodList</span><span class="p">{}</span> <span class="p">},</span>
+		<span class="nx">PredicateFunc</span><span class="p">:</span>            <span class="nx">registrypod</span><span class="p">.</span><span class="nx">MatchPod</span><span class="p">,</span>
+		<span class="nx">DefaultQualifiedResource</span><span class="p">:</span> <span class="nx">api</span><span class="p">.</span><span class="nf">Resource</span><span class="p">(</span><span class="s">&#34;pods&#34;</span><span class="p">),</span>
+
+		<span class="nx">CreateStrategy</span><span class="p">:</span>      <span class="nx">registrypod</span><span class="p">.</span><span class="nx">Strategy</span><span class="p">,</span>
+		<span class="nx">UpdateStrategy</span><span class="p">:</span>      <span class="nx">registrypod</span><span class="p">.</span><span class="nx">Strategy</span><span class="p">,</span>
+		<span class="nx">DeleteStrategy</span><span class="p">:</span>      <span class="nx">registrypod</span><span class="p">.</span><span class="nx">Strategy</span><span class="p">,</span>
+		<span class="nx">ReturnDeletedObject</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+
+		<span class="nx">TableConvertor</span><span class="p">:</span> <span class="nx">printerstorage</span><span class="p">.</span><span class="nx">TableConvertor</span><span class="p">{</span><span class="nx">TableGenerator</span><span class="p">:</span> <span class="nx">printers</span><span class="p">.</span><span class="nf">NewTableGenerator</span><span class="p">().</span><span class="nf">With</span><span class="p">(</span><span class="nx">printersinternal</span><span class="p">.</span><span class="nx">AddHandlers</span><span class="p">)},</span>
+	<span class="p">}</span>
+	<span class="nx">options</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">generic</span><span class="p">.</span><span class="nx">StoreOptions</span><span class="p">{</span>
+		<span class="nx">RESTOptions</span><span class="p">:</span> <span class="nx">optsGetter</span><span class="p">,</span><span class="c1">//这个是前面初始化的StorageFactoryRestOptionsFactory结构
+</span><span class="c1"></span>		<span class="nx">AttrFunc</span><span class="p">:</span>    <span class="nx">registrypod</span><span class="p">.</span><span class="nx">GetAttrs</span><span class="p">,</span>
+		<span class="nx">TriggerFunc</span><span class="p">:</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">storage</span><span class="p">.</span><span class="nx">IndexerFunc</span><span class="p">{</span><span class="s">&#34;spec.nodeName&#34;</span><span class="p">:</span> <span class="nx">registrypod</span><span class="p">.</span><span class="nx">NodeNameTriggerFunc</span><span class="p">},</span>
+		<span class="nx">Indexers</span><span class="p">:</span>    <span class="nx">registrypod</span><span class="p">.</span><span class="nf">Indexers</span><span class="p">(),</span>
+	<span class="p">}</span>
+
+<span class="c1">//其中registrypod.GetAttrs实现 pkg/registry/core/pod/strategy.go
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">GetAttrs</span><span class="p">(</span><span class="nx">obj</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span><span class="p">)</span> <span class="p">(</span><span class="nx">labels</span><span class="p">.</span><span class="nx">Set</span><span class="p">,</span> <span class="nx">fields</span><span class="p">.</span><span class="nx">Set</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">pod</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">obj</span><span class="p">.(</span><span class="o">*</span><span class="nx">api</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;not a pod&#34;</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">labels</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="nx">pod</span><span class="p">.</span><span class="nx">ObjectMeta</span><span class="p">.</span><span class="nx">Labels</span><span class="p">),</span> <span class="nf">ToSelectableFields</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="kc">nil</span>
+<span class="p">}</span>
+<span class="c1">//Indexers是
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">Indexers</span><span class="p">()</span> <span class="o">*</span><span class="nx">cache</span><span class="p">.</span><span class="nx">Indexers</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">utilfeature</span><span class="p">.</span><span class="nx">DefaultFeatureGate</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">genericfeatures</span><span class="p">.</span><span class="nx">SelectorIndex</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="o">&amp;</span><span class="nx">cache</span><span class="p">.</span><span class="nx">Indexers</span><span class="p">{</span>
+			<span class="nx">storage</span><span class="p">.</span><span class="nf">FieldIndex</span><span class="p">(</span><span class="s">&#34;spec.nodeName&#34;</span><span class="p">):</span> <span class="nx">NodeNameIndexFunc</span><span class="p">,</span><span class="c1">//NodeNameIndexFunc获取obj的nodename字段
+</span><span class="c1"></span>		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>关于store的重要部分在<code>CompleteWithOptions</code>，这里完成了很多重要的事情，先看<code>GetRESTOptions</code>部分，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">StorageFactoryRestOptionsFactory</span><span class="p">)</span> <span class="nf">GetRESTOptions</span><span class="p">(</span><span class="nx">resource</span> <span class="nx">schema</span><span class="p">.</span><span class="nx">GroupResource</span><span class="p">)</span> <span class="p">(</span><span class="nx">generic</span><span class="p">.</span><span class="nx">RESTOptions</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">storageConfig</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">StorageFactory</span><span class="p">.</span><span class="nf">NewConfig</span><span class="p">(</span><span class="nx">resource</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">generic</span><span class="p">.</span><span class="nx">RESTOptions</span><span class="p">{},</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;unable to find storage destination for %v, due to %v&#34;</span><span class="p">,</span> <span class="nx">resource</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">())</span>
+	<span class="p">}</span>
+
+	<span class="nx">ret</span> <span class="o">:=</span> <span class="nx">generic</span><span class="p">.</span><span class="nx">RESTOptions</span><span class="p">{</span>
+		<span class="nx">StorageConfig</span><span class="p">:</span>           <span class="nx">storageConfig</span><span class="p">,</span>
+		<span class="nx">Decorator</span><span class="p">:</span>               <span class="nx">generic</span><span class="p">.</span><span class="nx">UndecoratedStorage</span><span class="p">,</span>
+		<span class="nx">DeleteCollectionWorkers</span><span class="p">:</span> <span class="nx">f</span><span class="p">.</span><span class="nx">Options</span><span class="p">.</span><span class="nx">DeleteCollectionWorkers</span><span class="p">,</span>
+		<span class="nx">EnableGarbageCollection</span><span class="p">:</span> <span class="nx">f</span><span class="p">.</span><span class="nx">Options</span><span class="p">.</span><span class="nx">EnableGarbageCollection</span><span class="p">,</span>
+		<span class="nx">ResourcePrefix</span><span class="p">:</span>          <span class="nx">f</span><span class="p">.</span><span class="nx">StorageFactory</span><span class="p">.</span><span class="nf">ResourcePrefix</span><span class="p">(</span><span class="nx">resource</span><span class="p">),</span>
+		<span class="nx">CountMetricPollPeriod</span><span class="p">:</span>   <span class="nx">f</span><span class="p">.</span><span class="nx">Options</span><span class="p">.</span><span class="nx">StorageConfig</span><span class="p">.</span><span class="nx">CountMetricPollPeriod</span><span class="p">,</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">f</span><span class="p">.</span><span class="nx">Options</span><span class="p">.</span><span class="nx">EnableWatchCache</span> <span class="p">{</span>
+		<span class="nx">sizes</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">ParseWatchCacheSizes</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">Options</span><span class="p">.</span><span class="nx">WatchCacheSizes</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">generic</span><span class="p">.</span><span class="nx">RESTOptions</span><span class="p">{},</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="nx">cacheSize</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">sizes</span><span class="p">[</span><span class="nx">resource</span><span class="p">]</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+			<span class="nx">cacheSize</span> <span class="p">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">Options</span><span class="p">.</span><span class="nx">DefaultWatchCacheSize</span>
+		<span class="p">}</span>
+		<span class="c1">// depending on cache size this might return an undecorated storage
+</span><span class="c1"></span>		<span class="nx">ret</span><span class="p">.</span><span class="nx">Decorator</span> <span class="p">=</span> <span class="nx">genericregistry</span><span class="p">.</span><span class="nf">StorageWithCacher</span><span class="p">(</span><span class="nx">cacheSize</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nx">ret</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>GetRESTOptions</code>中会分为两个类型的存储初始化，一种是裸存储，还一种是带cache的存储。默认kube-apiserver启动的时候watchCache功能都是true，这里我们分析带存储功能的存储。通过<code>StorageWithCacher</code>函数初始化存储。这里也只是一个声明，在后面将会用到。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">StorageWithCacher</span><span class="p">(</span><span class="nx">capacity</span> <span class="kt">int</span><span class="p">)</span> <span class="nx">generic</span><span class="p">.</span><span class="nx">StorageDecorator</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="kd">func</span><span class="p">(</span>
+		<span class="nx">storageConfig</span> <span class="o">*</span><span class="nx">storagebackend</span><span class="p">.</span><span class="nx">Config</span><span class="p">,</span>
+		<span class="nx">resourcePrefix</span> <span class="kt">string</span><span class="p">,</span>
+		<span class="nx">keyFunc</span> <span class="kd">func</span><span class="p">(</span><span class="nx">obj</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span><span class="p">)</span> <span class="p">(</span><span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">),</span>
+		<span class="nx">newFunc</span> <span class="kd">func</span><span class="p">()</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span><span class="p">,</span>
+		<span class="nx">newListFunc</span> <span class="kd">func</span><span class="p">()</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span><span class="p">,</span>
+		<span class="nx">getAttrsFunc</span> <span class="nx">storage</span><span class="p">.</span><span class="nx">AttrFunc</span><span class="p">,</span>
+		<span class="nx">triggerFuncs</span> <span class="nx">storage</span><span class="p">.</span><span class="nx">IndexerFuncs</span><span class="p">,</span>
+		<span class="nx">indexers</span> <span class="o">*</span><span class="nx">cache</span><span class="p">.</span><span class="nx">Indexers</span><span class="p">)</span> <span class="p">(</span><span class="nx">storage</span><span class="p">.</span><span class="nx">Interface</span><span class="p">,</span> <span class="nx">factory</span><span class="p">.</span><span class="nx">DestroyFunc</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+<span class="c1">//这个背后实现的是一个裸存储，具体会根据etcd的版本来创建具体的存储类型
+</span><span class="c1"></span>		<span class="nx">s</span><span class="p">,</span> <span class="nx">d</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">generic</span><span class="p">.</span><span class="nf">NewRawStorage</span><span class="p">(</span><span class="nx">storageConfig</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">s</span><span class="p">,</span> <span class="nx">d</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="nx">capacity</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Storage caching is disabled for %T&#34;</span><span class="p">,</span> <span class="nf">newFunc</span><span class="p">())</span>
+			<span class="k">return</span> <span class="nx">s</span><span class="p">,</span> <span class="nx">d</span><span class="p">,</span> <span class="kc">nil</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Storage caching is enabled for %T with capacity %v&#34;</span><span class="p">,</span> <span class="nf">newFunc</span><span class="p">(),</span> <span class="nx">capacity</span><span class="p">)</span>
+		<span class="p">}</span>
+
+		<span class="c1">// TODO: we would change this later to make storage always have cacher and hide low level KV layer inside.
+</span><span class="c1"></span>		<span class="c1">// Currently it has two layers of same storage interface -- cacher and low level kv.
+</span><span class="c1"></span>		<span class="nx">cacherConfig</span> <span class="o">:=</span> <span class="nx">cacherstorage</span><span class="p">.</span><span class="nx">Config</span><span class="p">{</span>
+			<span class="nx">CacheCapacity</span><span class="p">:</span>  <span class="nx">capacity</span><span class="p">,</span>
+			<span class="nx">Storage</span><span class="p">:</span>        <span class="nx">s</span><span class="p">,</span>  <span class="c1">//etcd裸存储
+</span><span class="c1"></span>			<span class="nx">Versioner</span><span class="p">:</span>      <span class="nx">etcd3</span><span class="p">.</span><span class="nx">APIObjectVersioner</span><span class="p">{},</span>
+			<span class="nx">ResourcePrefix</span><span class="p">:</span> <span class="nx">resourcePrefix</span><span class="p">,</span>
+			<span class="nx">KeyFunc</span><span class="p">:</span>        <span class="nx">keyFunc</span><span class="p">,</span>
+			<span class="nx">NewFunc</span><span class="p">:</span>        <span class="nx">newFunc</span><span class="p">,</span>
+			<span class="nx">NewListFunc</span><span class="p">:</span>    <span class="nx">newListFunc</span><span class="p">,</span>
+			<span class="nx">GetAttrsFunc</span><span class="p">:</span>   <span class="nx">getAttrsFunc</span><span class="p">,</span>
+			<span class="nx">IndexerFuncs</span><span class="p">:</span>   <span class="nx">triggerFuncs</span><span class="p">,</span>
+			<span class="nx">Indexers</span><span class="p">:</span>       <span class="nx">indexers</span><span class="p">,</span>
+			<span class="nx">Codec</span><span class="p">:</span>          <span class="nx">storageConfig</span><span class="p">.</span><span class="nx">Codec</span><span class="p">,</span>
+		<span class="p">}</span>
+    <span class="c1">//在这里进行cache存储的初始化，包括了事件的监听之类的
+</span><span class="c1"></span>		<span class="nx">cacher</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">cacherstorage</span><span class="p">.</span><span class="nf">NewCacherFromConfig</span><span class="p">(</span><span class="nx">cacherConfig</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{},</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="nx">destroyFunc</span> <span class="o">:=</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+			<span class="nx">cacher</span><span class="p">.</span><span class="nf">Stop</span><span class="p">()</span>
+			<span class="nf">d</span><span class="p">()</span>
+		<span class="p">}</span>
+
+		<span class="c1">// TODO : Remove RegisterStorageCleanup below when PR
+</span><span class="c1"></span>		<span class="c1">// https://github.com/kubernetes/kubernetes/pull/50690
+</span><span class="c1"></span>		<span class="c1">// merges as that shuts down storage properly
+</span><span class="c1"></span>		<span class="nf">RegisterStorageCleanup</span><span class="p">(</span><span class="nx">destroyFunc</span><span class="p">)</span>
+
+		<span class="k">return</span> <span class="nx">cacher</span><span class="p">,</span> <span class="nx">destroyFunc</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>再来详细分析<code>cacherstorage.NewCacherFromConfig</code>函数，先看<code>watchCache</code>的生成，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">watchCache</span> <span class="o">:=</span> <span class="nf">newWatchCache</span><span class="p">(</span>
+		<span class="nx">config</span><span class="p">.</span><span class="nx">CacheCapacity</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">KeyFunc</span><span class="p">,</span> <span class="nx">cacher</span><span class="p">.</span><span class="nx">processEvent</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">GetAttrsFunc</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Versioner</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Indexers</span><span class="p">)</span>
+	<span class="nx">listerWatcher</span> <span class="o">:=</span> <span class="nf">NewCacherListerWatcher</span><span class="p">(</span><span class="nx">config</span><span class="p">.</span><span class="nx">Storage</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">ResourcePrefix</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">NewListFunc</span><span class="p">)</span>
+	<span class="nx">reflectorName</span> <span class="o">:=</span> <span class="s">&#34;storage/cacher.go:&#34;</span> <span class="o">+</span> <span class="nx">config</span><span class="p">.</span><span class="nx">ResourcePrefix</span>
+
+	<span class="nx">reflector</span> <span class="o">:=</span> <span class="nx">cache</span><span class="p">.</span><span class="nf">NewNamedReflector</span><span class="p">(</span><span class="nx">reflectorName</span><span class="p">,</span> <span class="nx">listerWatcher</span><span class="p">,</span> <span class="nx">obj</span><span class="p">,</span> <span class="nx">watchCache</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="c1">// Configure reflector&#39;s pager to for an appropriate pagination chunk size for fetching data from
+</span><span class="c1"></span>	<span class="c1">// storage. The pager falls back to full list if paginated list calls fail due to an &#34;Expired&#34; error.
+</span><span class="c1"></span>	<span class="nx">reflector</span><span class="p">.</span><span class="nx">WatchListPageSize</span> <span class="p">=</span> <span class="nx">storageWatchListPageSize</span>
+
+	<span class="nx">cacher</span><span class="p">.</span><span class="nx">watchCache</span> <span class="p">=</span> <span class="nx">watchCache</span>
+	<span class="nx">cacher</span><span class="p">.</span><span class="nx">reflector</span> <span class="p">=</span> <span class="nx">reflector</span>
+
+	<span class="k">go</span> <span class="nx">cacher</span><span class="p">.</span><span class="nf">dispatchEvents</span><span class="p">()</span>
+
+	<span class="nx">cacher</span><span class="p">.</span><span class="nx">stopWg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">defer</span> <span class="nx">cacher</span><span class="p">.</span><span class="nx">stopWg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+		<span class="k">defer</span> <span class="nx">cacher</span><span class="p">.</span><span class="nf">terminateAllWatchers</span><span class="p">()</span>
+		<span class="nx">wait</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span>
+			<span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+				<span class="k">if</span> <span class="p">!</span><span class="nx">cacher</span><span class="p">.</span><span class="nf">isStopped</span><span class="p">()</span> <span class="p">{</span>
+					<span class="nx">cacher</span><span class="p">.</span><span class="nf">startCaching</span><span class="p">(</span><span class="nx">stopCh</span><span class="p">)</span>
+				<span class="p">}</span>
+			<span class="p">},</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span> <span class="nx">stopCh</span><span class="p">,</span>
+		<span class="p">)</span>
+	<span class="p">}()</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在newWatchCache中，完成WatchCache的初始化，并初始化本地缓存结构store，在<code>eventHandler</code>会将event数据写入到cacher.incoming的channel。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">newWatchCache</span><span class="p">(</span>
+	<span class="nx">capacity</span> <span class="kt">int</span><span class="p">,</span>
+	<span class="nx">keyFunc</span> <span class="kd">func</span><span class="p">(</span><span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span><span class="p">)</span> <span class="p">(</span><span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">),</span>
+	<span class="nx">eventHandler</span> <span class="kd">func</span><span class="p">(</span><span class="o">*</span><span class="nx">watchCacheEvent</span><span class="p">),</span>
+	<span class="nx">getAttrsFunc</span> <span class="kd">func</span><span class="p">(</span><span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span><span class="p">)</span> <span class="p">(</span><span class="nx">labels</span><span class="p">.</span><span class="nx">Set</span><span class="p">,</span> <span class="nx">fields</span><span class="p">.</span><span class="nx">Set</span><span class="p">,</span> <span class="kt">error</span><span class="p">),</span>
+	<span class="nx">versioner</span> <span class="nx">storage</span><span class="p">.</span><span class="nx">Versioner</span><span class="p">,</span>
+	<span class="nx">indexers</span> <span class="o">*</span><span class="nx">cache</span><span class="p">.</span><span class="nx">Indexers</span><span class="p">)</span> <span class="o">*</span><span class="nx">watchCache</span> <span class="p">{</span>
+	<span class="nx">wc</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">watchCache</span><span class="p">{</span>
+		<span class="nx">capacity</span><span class="p">:</span>            <span class="nx">capacity</span><span class="p">,</span>
+		<span class="nx">keyFunc</span><span class="p">:</span>             <span class="nx">keyFunc</span><span class="p">,</span>
+		<span class="nx">getAttrsFunc</span><span class="p">:</span>        <span class="nx">getAttrsFunc</span><span class="p">,</span>
+		<span class="nx">cache</span><span class="p">:</span>               <span class="nb">make</span><span class="p">([]</span><span class="o">*</span><span class="nx">watchCacheEvent</span><span class="p">,</span> <span class="nx">capacity</span><span class="p">),</span>
+		<span class="nx">startIndex</span><span class="p">:</span>          <span class="mi">0</span><span class="p">,</span>
+		<span class="nx">endIndex</span><span class="p">:</span>            <span class="mi">0</span><span class="p">,</span>
+		<span class="nx">store</span><span class="p">:</span>               <span class="nx">cache</span><span class="p">.</span><span class="nf">NewIndexer</span><span class="p">(</span><span class="nx">storeElementKey</span><span class="p">,</span> <span class="nf">storeElementIndexers</span><span class="p">(</span><span class="nx">indexers</span><span class="p">)),</span>
+		<span class="nx">resourceVersion</span><span class="p">:</span>     <span class="mi">0</span><span class="p">,</span>
+		<span class="nx">listResourceVersion</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+		<span class="nx">eventHandler</span><span class="p">:</span>        <span class="nx">eventHandler</span><span class="p">,</span>
+		<span class="nx">clock</span><span class="p">:</span>               <span class="nx">clock</span><span class="p">.</span><span class="nx">RealClock</span><span class="p">{},</span>
+		<span class="nx">versioner</span><span class="p">:</span>           <span class="nx">versioner</span><span class="p">,</span>
+	<span class="p">}</span>
+	<span class="nx">wc</span><span class="p">.</span><span class="nx">cond</span> <span class="p">=</span> <span class="nx">sync</span><span class="p">.</span><span class="nf">NewCond</span><span class="p">(</span><span class="nx">wc</span><span class="p">.</span><span class="nf">RLocker</span><span class="p">())</span>
+	<span class="k">return</span> <span class="nx">wc</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后再初始化<code>ReFlector</code>，这个结构会封装上面的<code>listWatcher</code>和<code>watchCache</code>结构，这个也将直接和etcd交互。再启动<code>cacher.dispatchEvents</code>处理从<code>incoming</code>的channel中的数据，再将数据通过<code>c.dispatchEvents</code>进行分发，并将event发送到cacher的<code>input</code>channel。而input里面的数据将会被<code>cacheWatcher.process</code>消费。
+在<code>listerWatcher</code>中初始化<code>cacherListerWatcher</code>这里会对etcd进行操作，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">cacherListerWatcher</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">storage</span>        <span class="nx">storage</span><span class="p">.</span><span class="nx">Interface</span><span class="c1">//这个是通过etcd3创建出来的裸存储
+</span><span class="c1"></span>	<span class="nx">resourcePrefix</span> <span class="kt">string</span>
+	<span class="nx">newListFunc</span>    <span class="kd">func</span><span class="p">()</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">Object</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">NewNamedReflector</span><span class="p">(</span><span class="nx">name</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">lw</span> <span class="nx">ListerWatcher</span><span class="p">,</span> <span class="nx">expectedType</span> <span class="kd">interface</span><span class="p">{},</span> <span class="nx">store</span> <span class="nx">Store</span><span class="p">,</span> <span class="nx">resyncPeriod</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="o">*</span><span class="nx">Reflector</span> <span class="p">{</span>
+	<span class="nx">realClock</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">clock</span><span class="p">.</span><span class="nx">RealClock</span><span class="p">{}</span>
+	<span class="nx">r</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">Reflector</span><span class="p">{</span>
+		<span class="nx">name</span><span class="p">:</span>          <span class="nx">name</span><span class="p">,</span>
+		<span class="nx">listerWatcher</span><span class="p">:</span> <span class="nx">lw</span><span class="p">,</span>
+		<span class="nx">store</span><span class="p">:</span>         <span class="nx">store</span><span class="p">,</span><span class="c1">//这个是watchCache
+</span><span class="c1"></span>		<span class="c1">// We used to make the call every 1sec (1 QPS), the goal here is to achieve ~98% traffic reduction when
+</span><span class="c1"></span>		<span class="c1">// API server is not healthy. With these parameters, backoff will stop at [30,60) sec interval which is
+</span><span class="c1"></span>		<span class="c1">// 0.22 QPS. If we don&#39;t backoff for 2min, assume API server is healthy and we reset the backoff.
+</span><span class="c1"></span>		<span class="nx">backoffManager</span><span class="p">:</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">NewExponentialBackoffManager</span><span class="p">(</span><span class="mi">800</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">,</span> <span class="mi">30</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Minute</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nx">realClock</span><span class="p">),</span>
+		<span class="nx">resyncPeriod</span><span class="p">:</span>   <span class="nx">resyncPeriod</span><span class="p">,</span>
+		<span class="nx">clock</span><span class="p">:</span>          <span class="nx">realClock</span><span class="p">,</span>
+	<span class="p">}</span>
+	<span class="nx">r</span><span class="p">.</span><span class="nf">setExpectedType</span><span class="p">(</span><span class="nx">expectedType</span><span class="p">)</span>
+	<span class="k">return</span> <span class="nx">r</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里再看event事件到了cacher之后会通过<code>cacher.dispatchEvents</code>进行分发处理，从incoming的channel中获取事件，然后通过<code>c.dispatchEvent</code>对事件再分发，调用<code>watcher.nonblockingAdd</code>把事件写入<code>input</code>的channel。然后再会通过<code>cacherWatcher</code>的<code>process</code>进行处理，这个函数会在创建cacherWatcher的时候启动一个协程进行处理。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cacher</span><span class="p">)</span> <span class="nf">dispatchEvents</span><span class="p">()</span> <span class="p">{</span>
+	<span class="c1">// Jitter to help level out any aggregate load.
+</span><span class="c1"></span>	<span class="nx">bookmarkTimer</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">clock</span><span class="p">.</span><span class="nf">NewTimer</span><span class="p">(</span><span class="nx">wait</span><span class="p">.</span><span class="nf">Jitter</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">))</span>
+	<span class="k">defer</span> <span class="nx">bookmarkTimer</span><span class="p">.</span><span class="nf">Stop</span><span class="p">()</span>
+
+	<span class="nx">lastProcessedResourceVersion</span> <span class="o">:=</span> <span class="nb">uint64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+	<span class="k">for</span> <span class="p">{</span>
+		<span class="k">select</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="nx">event</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">c</span><span class="p">.</span><span class="nx">incoming</span><span class="p">:</span>
+			<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="nx">c</span><span class="p">.</span><span class="nf">dispatchEvent</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">event</span><span class="p">)</span>
+			<span class="nx">lastProcessedResourceVersion</span> <span class="p">=</span> <span class="nx">event</span><span class="p">.</span><span class="nx">ResourceVersion</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">bookmarkTimer</span><span class="p">.</span><span class="nf">C</span><span class="p">():</span>
+			<span class="nx">bookmarkTimer</span><span class="p">.</span><span class="nf">Reset</span><span class="p">(</span><span class="nx">wait</span><span class="p">.</span><span class="nf">Jitter</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">))</span>
+			<span class="c1">// Never send a bookmark event if we did not see an event here, this is fine
+</span><span class="c1"></span>			<span class="c1">// because we don&#39;t provide any guarantees on sending bookmarks.
+</span><span class="c1"></span>			<span class="k">if</span> <span class="nx">lastProcessedResourceVersion</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+				<span class="c1">// pop expired watchers in case there has been no update
+</span><span class="c1"></span>				<span class="nx">c</span><span class="p">.</span><span class="nx">bookmarkWatchers</span><span class="p">.</span><span class="nf">popExpiredWatchers</span><span class="p">()</span>
+				<span class="k">continue</span>
+			<span class="p">}</span>
+			<span class="nx">bookmarkEvent</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">watchCacheEvent</span><span class="p">{</span>
+				<span class="nx">Type</span><span class="p">:</span>            <span class="nx">watch</span><span class="p">.</span><span class="nx">Bookmark</span><span class="p">,</span>
+				<span class="nx">Object</span><span class="p">:</span>          <span class="nx">c</span><span class="p">.</span><span class="nf">newFunc</span><span class="p">(),</span>
+				<span class="nx">ResourceVersion</span><span class="p">:</span> <span class="nx">lastProcessedResourceVersion</span><span class="p">,</span>
+			<span class="p">}</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">versioner</span><span class="p">.</span><span class="nf">UpdateObject</span><span class="p">(</span><span class="nx">bookmarkEvent</span><span class="p">.</span><span class="nx">Object</span><span class="p">,</span> <span class="nx">bookmarkEvent</span><span class="p">.</span><span class="nx">ResourceVersion</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failure to set resourceVersion to %d on bookmark event %+v&#34;</span><span class="p">,</span> <span class="nx">bookmarkEvent</span><span class="p">.</span><span class="nx">ResourceVersion</span><span class="p">,</span> <span class="nx">bookmarkEvent</span><span class="p">.</span><span class="nx">Object</span><span class="p">)</span>
+				<span class="k">continue</span>
+			<span class="p">}</span>
+			<span class="nx">c</span><span class="p">.</span><span class="nf">dispatchEvent</span><span class="p">(</span><span class="nx">bookmarkEvent</span><span class="p">)</span>
+		<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">c</span><span class="p">.</span><span class="nx">stopCh</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>cacher.startCaching</code>中完成<code>reflector</code>的<code>ListAndWatch</code>功能，这里最终还是操作ETCD存储。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Cacher</span><span class="p">)</span> <span class="nf">startCaching</span><span class="p">(</span><span class="nx">stopChannel</span> <span class="o">&lt;-</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{})</span> <span class="p">{</span>
+	<span class="c1">// The &#39;usable&#39; lock is always &#39;RLock&#39;able when it is safe to use the cache.
+</span><span class="c1"></span>	<span class="c1">// It is safe to use the cache after a successful list until a disconnection.
+</span><span class="c1"></span>	<span class="c1">// We start with usable (write) locked. The below OnReplace function will
+</span><span class="c1"></span>	<span class="c1">// unlock it after a successful list. The below defer will then re-lock
+</span><span class="c1"></span>	<span class="c1">// it when this function exits (always due to disconnection), only if
+</span><span class="c1"></span>	<span class="c1">// we actually got a successful list. This cycle will repeat as needed.
+</span><span class="c1"></span>	<span class="nx">successfulList</span> <span class="o">:=</span> <span class="kc">false</span>
+	<span class="nx">c</span><span class="p">.</span><span class="nx">watchCache</span><span class="p">.</span><span class="nf">SetOnReplace</span><span class="p">(</span><span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">successfulList</span> <span class="p">=</span> <span class="kc">true</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">ready</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+	<span class="p">})</span>
+	<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">successfulList</span> <span class="p">{</span>
+			<span class="nx">c</span><span class="p">.</span><span class="nx">ready</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}()</span>
+
+	<span class="nx">c</span><span class="p">.</span><span class="nf">terminateAllWatchers</span><span class="p">()</span>
+	<span class="c1">// Note that since onReplace may be not called due to errors, we explicitly
+</span><span class="c1"></span>	<span class="c1">// need to retry it on errors under lock.
+</span><span class="c1"></span>	<span class="c1">// Also note that startCaching is called in a loop, so there&#39;s no need
+</span><span class="c1"></span>	<span class="c1">// to have another loop here.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">reflector</span><span class="p">.</span><span class="nf">ListAndWatch</span><span class="p">(</span><span class="nx">stopChannel</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;unexpected ListAndWatch error: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>具体的逻辑图可以参考下面这个图，这里是以pod为例。
+<figure>
+    <img src="../images/ETCD%e5%ad%98%e5%82%a8%e4%ba%a4%e4%ba%92%e9%80%bb%e8%be%91.png"/> 
+</figure>
+</p>
+<h2 id="总结">总结</h2>
+<p>这里只针对具体的cacher进行了分析，中间还有很多的过程没有分析，还需要进一步补充(比如这里对数据的写入和读取的编码部分等等)，kube-apiserver的代码逻辑还是很复杂，有更深层次的理解。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-08-18 18:33
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/kube-apiserver/">kube-apiserver</a>
+          <a href="/tags/etcd/">etcd</a>
+          </div>
+      <nav class="post-nav">
+        
+        <a class="next" href="/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/">
+            <span class="next-text nav-default">[Kubernetes] Kubelet之CRI和CNI调用分析</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="mailto:your@email.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>

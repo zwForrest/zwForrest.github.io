@@ -6,10 +6,19 @@
     <description>Recent content in Client-go on Welcome to zForrest</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-CN</language>
-    <lastBuildDate>Sat, 08 Aug 2020 12:40:48 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 09 Aug 2020 01:37:56 +0800</lastBuildDate>
     
 	<atom:link href="https://zwForrest.github.io/tags/client-go/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>[Kubernetes]Index结构分析</title>
+      <link>https://zwForrest.github.io/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/</link>
+      <pubDate>Sun, 09 Aug 2020 01:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/</guid>
+      <description>Index结构 在这里Index存储接口的具体实现是cache。 1 2 3 4 5 6 7 8 type cache struct { // cacheStorage bears the burden of thread safety for the cache cacheStorage ThreadSafeStore // keyFunc is used to make the key for objects stored in and retrieved</description>
+    </item>
     
     <item>
       <title>[Kubernetes] Client-go分析</title>

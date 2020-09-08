@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] Kubelet之CRI和CNI调用分析 - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="架构 kubelet架构如图所示 默认docker模式的调用关系 源码分析 接下来从代码层面分析一下kubelet中CRI和CNI的逻辑关系。 首先在" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] Kubelet之CRI和CNI调用分析" />
+<meta property="og:description" content="架构 kubelet架构如图所示 默认docker模式的调用关系 源码分析 接下来从代码层面分析一下kubelet中CRI和CNI的逻辑关系。 首先在" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/" />
+<meta property="article:published_time" content="2020-08-11T11:37:56+08:00" />
+<meta property="article:modified_time" content="2020-08-11T11:37:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] Kubelet之CRI和CNI调用分析">
+<meta itemprop="description" content="架构 kubelet架构如图所示 默认docker模式的调用关系 源码分析 接下来从代码层面分析一下kubelet中CRI和CNI的逻辑关系。 首先在">
+<meta itemprop="datePublished" content="2020-08-11T11:37:56+08:00" />
+<meta itemprop="dateModified" content="2020-08-11T11:37:56+08:00" />
+<meta itemprop="wordCount" content="5753">
+
+
+
+<meta itemprop="keywords" content="kubernetes,cni,cri,kubelet," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] Kubelet之CRI和CNI调用分析"/>
+<meta name="twitter:description" content="架构 kubelet架构如图所示 默认docker模式的调用关系 源码分析 接下来从代码层面分析一下kubelet中CRI和CNI的逻辑关系。 首先在"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] Kubelet之CRI和CNI调用分析</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-08-11 11:37 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 5753 字 </span>
+          <span class="more-meta"> 预计阅读 12 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#架构">架构</a></li>
+    <li><a href="#源码分析">源码分析</a></li>
+    <li><a href="#参考文档">参考文档</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <h2 id="架构">架构</h2>
+<p>kubelet架构如图所示
+<figure>
+    <img src="../images/kubelet%e6%9e%b6%e6%9e%84.png"/> 
+</figure>
+</p>
+<p>默认docker模式的调用关系
+<figure>
+    <img src="../images/CRI%e8%b0%83%e7%94%a8.png"/> 
+</figure>
+</p>
+<h2 id="源码分析">源码分析</h2>
+<p>接下来从代码层面分析一下kubelet中CRI和CNI的逻辑关系。
+首先在NewKubeletCommand()命令中，初始化kubeletFlags相关参数。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">NewKubeletFlags</span><span class="p">()</span> <span class="o">*</span><span class="nx">KubeletFlags</span> <span class="p">{</span>
+	<span class="nx">remoteRuntimeEndpoint</span> <span class="o">:=</span> <span class="s">&#34;&#34;</span>
+	<span class="k">if</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">GOOS</span> <span class="o">==</span> <span class="s">&#34;linux&#34;</span> <span class="p">{</span>
+		<span class="nx">remoteRuntimeEndpoint</span> <span class="p">=</span> <span class="s">&#34;unix:///var/run/dockershim.sock&#34;</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">GOOS</span> <span class="o">==</span> <span class="s">&#34;windows&#34;</span> <span class="p">{</span>
+		<span class="nx">remoteRuntimeEndpoint</span> <span class="p">=</span> <span class="s">&#34;npipe:////./pipe/dockershim&#34;</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">KubeletFlags</span><span class="p">{</span>
+		<span class="nx">EnableServer</span><span class="p">:</span>                        <span class="kc">true</span><span class="p">,</span>
+		<span class="nx">ContainerRuntimeOptions</span><span class="p">:</span>             <span class="o">*</span><span class="nf">NewContainerRuntimeOptions</span><span class="p">(),</span>
+		<span class="nx">CertDirectory</span><span class="p">:</span>                       <span class="s">&#34;/var/lib/kubelet/pki&#34;</span><span class="p">,</span>
+		<span class="nx">RootDirectory</span><span class="p">:</span>                       <span class="nx">defaultRootDir</span><span class="p">,</span>
+		<span class="nx">MasterServiceNamespace</span><span class="p">:</span>              <span class="nx">metav1</span><span class="p">.</span><span class="nx">NamespaceDefault</span><span class="p">,</span>
+		<span class="nx">MaxContainerCount</span><span class="p">:</span>                   <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+		<span class="nx">MaxPerPodContainerCount</span><span class="p">:</span>             <span class="mi">1</span><span class="p">,</span>
+		<span class="nx">MinimumGCAge</span><span class="p">:</span>                        <span class="nx">metav1</span><span class="p">.</span><span class="nx">Duration</span><span class="p">{</span><span class="nx">Duration</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span>
+		<span class="nx">NonMasqueradeCIDR</span><span class="p">:</span>                   <span class="s">&#34;10.0.0.0/8&#34;</span><span class="p">,</span>
+		<span class="nx">RegisterSchedulable</span><span class="p">:</span>                 <span class="kc">true</span><span class="p">,</span>
+		<span class="nx">ExperimentalKernelMemcgNotification</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+		<span class="nx">RemoteRuntimeEndpoint</span><span class="p">:</span>               <span class="nx">remoteRuntimeEndpoint</span><span class="p">,</span>
+		<span class="nx">NodeLabels</span><span class="p">:</span>                          <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">),</span>
+		<span class="nx">VolumePluginDir</span><span class="p">:</span>                     <span class="s">&#34;/usr/libexec/kubernetes/kubelet-plugins/volume/exec/&#34;</span><span class="p">,</span>
+		<span class="nx">RegisterNode</span><span class="p">:</span>                        <span class="kc">true</span><span class="p">,</span>
+		<span class="nx">SeccompProfileRoot</span><span class="p">:</span>                  <span class="nx">filepath</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="nx">defaultRootDir</span><span class="p">,</span> <span class="s">&#34;seccomp&#34;</span><span class="p">),</span>
+		<span class="c1">// prior to the introduction of this flag, there was a hardcoded cap of 50 images
+</span><span class="c1"></span>		<span class="nx">NodeStatusMaxImages</span><span class="p">:</span>         <span class="mi">50</span><span class="p">,</span>
+		<span class="nx">EnableCAdvisorJSONEndpoints</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在NewContainerRuntimeOptions中会初始化ContainerRuntimeOptions的结构，这里包括了默认的ContainerRuntime和DockerEndpoint的socket。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">NewContainerRuntimeOptions</span><span class="p">()</span> <span class="o">*</span><span class="nx">config</span><span class="p">.</span><span class="nx">ContainerRuntimeOptions</span> <span class="p">{</span>
+	<span class="nx">dockerEndpoint</span> <span class="o">:=</span> <span class="s">&#34;&#34;</span>
+	<span class="k">if</span> <span class="nx">runtime</span><span class="p">.</span><span class="nx">GOOS</span> <span class="o">!=</span> <span class="s">&#34;windows&#34;</span> <span class="p">{</span>
+		<span class="nx">dockerEndpoint</span> <span class="p">=</span> <span class="s">&#34;unix:///var/run/docker.sock&#34;</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">config</span><span class="p">.</span><span class="nx">ContainerRuntimeOptions</span><span class="p">{</span>
+		<span class="nx">ContainerRuntime</span><span class="p">:</span>           <span class="nx">kubetypes</span><span class="p">.</span><span class="nx">DockerContainerRuntime</span><span class="p">,</span>
+		<span class="nx">RedirectContainerStreaming</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+		<span class="nx">DockerEndpoint</span><span class="p">:</span>             <span class="nx">dockerEndpoint</span><span class="p">,</span>
+		<span class="nx">DockershimRootDirectory</span><span class="p">:</span>    <span class="s">&#34;/var/lib/dockershim&#34;</span><span class="p">,</span>
+		<span class="nx">PodSandboxImage</span><span class="p">:</span>            <span class="nx">defaultPodSandboxImage</span><span class="p">,</span>
+		<span class="nx">ImagePullProgressDeadline</span><span class="p">:</span>  <span class="nx">metav1</span><span class="p">.</span><span class="nx">Duration</span><span class="p">{</span><span class="nx">Duration</span><span class="p">:</span> <span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Minute</span><span class="p">},</span>
+		<span class="nx">ExperimentalDockershim</span><span class="p">:</span>     <span class="kc">false</span><span class="p">,</span>
+
+		<span class="c1">//Alpha feature
+</span><span class="c1"></span>		<span class="nx">CNIBinDir</span><span class="p">:</span>   <span class="s">&#34;/opt/cni/bin&#34;</span><span class="p">,</span>
+		<span class="nx">CNIConfDir</span><span class="p">:</span>  <span class="s">&#34;/etc/cni/net.d&#34;</span><span class="p">,</span>
+		<span class="nx">CNICacheDir</span><span class="p">:</span> <span class="s">&#34;/var/lib/cni/cache&#34;</span><span class="p">,</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后在<code>UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)</code>中完成ContainerRuntime的初始化，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">UnsecuredDependencies</span><span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">options</span><span class="p">.</span><span class="nx">KubeletServer</span><span class="p">,</span> <span class="nx">featureGate</span> <span class="nx">featuregate</span><span class="p">.</span><span class="nx">FeatureGate</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">kubelet</span><span class="p">.</span><span class="nx">Dependencies</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="c1">// Initialize the TLS Options
+</span><span class="c1"></span>	<span class="nx">tlsOptions</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">InitializeTLS</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">KubeletFlags</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">KubeletConfiguration</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">mounter</span> <span class="o">:=</span> <span class="nx">mount</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">ExperimentalMounterPath</span><span class="p">)</span>
+	<span class="nx">subpather</span> <span class="o">:=</span> <span class="nx">subpath</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">mounter</span><span class="p">)</span>
+	<span class="nx">hu</span> <span class="o">:=</span> <span class="nx">hostutil</span><span class="p">.</span><span class="nf">NewHostUtil</span><span class="p">()</span>
+	<span class="kd">var</span> <span class="nx">pluginRunner</span> <span class="p">=</span> <span class="nx">exec</span><span class="p">.</span><span class="nf">New</span><span class="p">()</span>
+
+	<span class="kd">var</span> <span class="nx">dockerClientConfig</span> <span class="o">*</span><span class="nx">dockershim</span><span class="p">.</span><span class="nx">ClientConfig</span>
+	<span class="k">if</span> <span class="nx">s</span><span class="p">.</span><span class="nx">ContainerRuntime</span> <span class="o">==</span> <span class="nx">kubetypes</span><span class="p">.</span><span class="nx">DockerContainerRuntime</span> <span class="p">{</span>
+		<span class="nx">dockerClientConfig</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">dockershim</span><span class="p">.</span><span class="nx">ClientConfig</span><span class="p">{</span>
+			<span class="nx">DockerEndpoint</span><span class="p">:</span>            <span class="nx">s</span><span class="p">.</span><span class="nx">DockerEndpoint</span><span class="p">,</span>
+			<span class="nx">RuntimeRequestTimeout</span><span class="p">:</span>     <span class="nx">s</span><span class="p">.</span><span class="nx">RuntimeRequestTimeout</span><span class="p">.</span><span class="nx">Duration</span><span class="p">,</span>
+			<span class="nx">ImagePullProgressDeadline</span><span class="p">:</span> <span class="nx">s</span><span class="p">.</span><span class="nx">ImagePullProgressDeadline</span><span class="p">.</span><span class="nx">Duration</span><span class="p">,</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="nx">plugins</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">ProbeVolumePlugins</span><span class="p">(</span><span class="nx">featureGate</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">kubelet</span><span class="p">.</span><span class="nx">Dependencies</span><span class="p">{</span>
+		<span class="nx">Auth</span><span class="p">:</span>                <span class="kc">nil</span><span class="p">,</span> <span class="c1">// default does not enforce auth[nz]
+</span><span class="c1"></span>		<span class="nx">CAdvisorInterface</span><span class="p">:</span>   <span class="kc">nil</span><span class="p">,</span> <span class="c1">// cadvisor.New launches background processes (bg http.ListenAndServe, and some bg cleaners), not set here
+</span><span class="c1"></span>		<span class="nx">Cloud</span><span class="p">:</span>               <span class="kc">nil</span><span class="p">,</span> <span class="c1">// cloud provider might start background processes
+</span><span class="c1"></span>		<span class="nx">ContainerManager</span><span class="p">:</span>    <span class="kc">nil</span><span class="p">,</span>
+		<span class="nx">DockerClientConfig</span><span class="p">:</span>  <span class="nx">dockerClientConfig</span><span class="p">,</span>
+		<span class="nx">KubeClient</span><span class="p">:</span>          <span class="kc">nil</span><span class="p">,</span>
+		<span class="nx">HeartbeatClient</span><span class="p">:</span>     <span class="kc">nil</span><span class="p">,</span>
+		<span class="nx">EventClient</span><span class="p">:</span>         <span class="kc">nil</span><span class="p">,</span>
+		<span class="nx">HostUtil</span><span class="p">:</span>            <span class="nx">hu</span><span class="p">,</span>
+		<span class="nx">Mounter</span><span class="p">:</span>             <span class="nx">mounter</span><span class="p">,</span>
+		<span class="nx">Subpather</span><span class="p">:</span>           <span class="nx">subpather</span><span class="p">,</span>
+		<span class="nx">OOMAdjuster</span><span class="p">:</span>         <span class="nx">oom</span><span class="p">.</span><span class="nf">NewOOMAdjuster</span><span class="p">(),</span>
+		<span class="nx">OSInterface</span><span class="p">:</span>         <span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">RealOS</span><span class="p">{},</span>
+		<span class="nx">VolumePlugins</span><span class="p">:</span>       <span class="nx">plugins</span><span class="p">,</span>
+		<span class="nx">DynamicPluginProber</span><span class="p">:</span> <span class="nf">GetDynamicPluginProber</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">VolumePluginDir</span><span class="p">,</span> <span class="nx">pluginRunner</span><span class="p">),</span>
+		<span class="nx">TLSOptions</span><span class="p">:</span>          <span class="nx">tlsOptions</span><span class="p">},</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后到<code>Run</code>函数，kubeletServer和kubeletDeps参数比较重要</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">kubeletServer</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">options</span><span class="p">.</span><span class="nx">KubeletServer</span><span class="p">{</span>
+				<span class="nx">KubeletFlags</span><span class="p">:</span>         <span class="o">*</span><span class="nx">kubeletFlags</span><span class="p">,</span>
+				<span class="nx">KubeletConfiguration</span><span class="p">:</span> <span class="o">*</span><span class="nx">kubeletConfig</span><span class="p">,</span>
+			<span class="p">}</span>
+
+			<span class="c1">// use kubeletServer to construct the default KubeletDeps
+</span><span class="c1"></span>			<span class="nx">kubeletDeps</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">UnsecuredDependencies</span><span class="p">(</span><span class="nx">kubeletServer</span><span class="p">,</span> <span class="nx">utilfeature</span><span class="p">.</span><span class="nx">DefaultFeatureGate</span><span class="p">)</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+			<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后看<code>run</code>函数</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span><span class="lnt">91
+</span><span class="lnt">92
+</span><span class="lnt">93
+</span><span class="lnt">94
+</span><span class="lnt">95
+</span><span class="lnt">96
+</span><span class="lnt">97
+</span><span class="lnt">98
+</span><span class="lnt">99
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">run</span><span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">options</span><span class="p">.</span><span class="nx">KubeletServer</span><span class="p">,</span> <span class="nx">kubeDeps</span> <span class="o">*</span><span class="nx">kubelet</span><span class="p">.</span><span class="nx">Dependencies</span><span class="p">,</span> <span class="nx">featureGate</span> <span class="nx">featuregate</span><span class="p">.</span><span class="nx">FeatureGate</span><span class="p">,</span> <span class="nx">stopCh</span> <span class="o">&lt;-</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{})</span> <span class="p">(</span><span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+  <span class="o">......</span>
+	<span class="nx">hostName</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">nodeutil</span><span class="p">.</span><span class="nf">GetHostname</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">HostnameOverride</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">nodeName</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">getNodeName</span><span class="p">(</span><span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">Cloud</span><span class="p">,</span> <span class="nx">hostName</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="c1">// if in standalone mode, indicate as much by setting all clients to nil
+</span><span class="c1"></span>	<span class="k">switch</span> <span class="p">{</span>
+	<span class="k">case</span> <span class="nx">standaloneMode</span><span class="p">:</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">KubeClient</span> <span class="p">=</span> <span class="kc">nil</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">EventClient</span> <span class="p">=</span> <span class="kc">nil</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">HeartbeatClient</span> <span class="p">=</span> <span class="kc">nil</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;standalone mode, no API client&#34;</span><span class="p">)</span>
+
+	<span class="k">case</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">KubeClient</span> <span class="o">==</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">EventClient</span> <span class="o">==</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">HeartbeatClient</span> <span class="o">==</span> <span class="kc">nil</span><span class="p">:</span>
+		<span class="nx">clientConfig</span><span class="p">,</span> <span class="nx">closeAllConns</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">buildKubeletClientConfig</span><span class="p">(</span><span class="nx">s</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="nx">closeAllConns</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">errors</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="s">&#34;closeAllConns must be a valid function other than nil&#34;</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">OnHeartbeatFailure</span> <span class="p">=</span> <span class="nx">closeAllConns</span>
+    <span class="c1">//初始化kubeClient
+</span><span class="c1"></span>    <span class="o">......</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">KubeClient</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">clientset</span><span class="p">.</span><span class="nf">NewForConfig</span><span class="p">(</span><span class="nx">clientConfig</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to initialize kubelet client: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+
+	<span class="p">}</span>
+
+	<span class="c1">// Setup event recorder if required.
+</span><span class="c1"></span>	<span class="nf">makeEventRecorder</span><span class="p">(</span><span class="nx">kubeDeps</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">ContainerManager</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+    <span class="o">...</span><span class="p">..</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">ContainerManager</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">cm</span><span class="p">.</span><span class="nf">NewContainerManager</span><span class="p">(</span>
+			<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">Mounter</span><span class="p">,</span>
+			<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">CAdvisorInterface</span><span class="p">,</span>
+			<span class="nx">cm</span><span class="p">.</span><span class="nx">NodeConfig</span><span class="p">{</span>
+				<span class="nx">RuntimeCgroupsName</span><span class="p">:</span>    <span class="nx">s</span><span class="p">.</span><span class="nx">RuntimeCgroups</span><span class="p">,</span>
+				<span class="nx">SystemCgroupsName</span><span class="p">:</span>     <span class="nx">s</span><span class="p">.</span><span class="nx">SystemCgroups</span><span class="p">,</span>
+				<span class="nx">KubeletCgroupsName</span><span class="p">:</span>    <span class="nx">s</span><span class="p">.</span><span class="nx">KubeletCgroups</span><span class="p">,</span>
+				<span class="nx">ContainerRuntime</span><span class="p">:</span>      <span class="nx">s</span><span class="p">.</span><span class="nx">ContainerRuntime</span><span class="p">,</span>
+				<span class="nx">CgroupsPerQOS</span><span class="p">:</span>         <span class="nx">s</span><span class="p">.</span><span class="nx">CgroupsPerQOS</span><span class="p">,</span>
+				<span class="nx">CgroupRoot</span><span class="p">:</span>            <span class="nx">s</span><span class="p">.</span><span class="nx">CgroupRoot</span><span class="p">,</span>
+				<span class="nx">CgroupDriver</span><span class="p">:</span>          <span class="nx">s</span><span class="p">.</span><span class="nx">CgroupDriver</span><span class="p">,</span>
+				<span class="nx">KubeletRootDir</span><span class="p">:</span>        <span class="nx">s</span><span class="p">.</span><span class="nx">RootDirectory</span><span class="p">,</span>
+				<span class="nx">ProtectKernelDefaults</span><span class="p">:</span> <span class="nx">s</span><span class="p">.</span><span class="nx">ProtectKernelDefaults</span><span class="p">,</span>
+				<span class="nx">NodeAllocatableConfig</span><span class="p">:</span> <span class="nx">cm</span><span class="p">.</span><span class="nx">NodeAllocatableConfig</span><span class="p">{</span>
+					<span class="nx">KubeReservedCgroupName</span><span class="p">:</span>   <span class="nx">s</span><span class="p">.</span><span class="nx">KubeReservedCgroup</span><span class="p">,</span>
+					<span class="nx">SystemReservedCgroupName</span><span class="p">:</span> <span class="nx">s</span><span class="p">.</span><span class="nx">SystemReservedCgroup</span><span class="p">,</span>
+					<span class="nx">EnforceNodeAllocatable</span><span class="p">:</span>   <span class="nx">sets</span><span class="p">.</span><span class="nf">NewString</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">EnforceNodeAllocatable</span><span class="o">...</span><span class="p">),</span>
+					<span class="nx">KubeReserved</span><span class="p">:</span>             <span class="nx">kubeReserved</span><span class="p">,</span>
+					<span class="nx">SystemReserved</span><span class="p">:</span>           <span class="nx">systemReserved</span><span class="p">,</span>
+					<span class="nx">ReservedSystemCPUs</span><span class="p">:</span>       <span class="nx">reservedSystemCPUs</span><span class="p">,</span>
+					<span class="nx">HardEvictionThresholds</span><span class="p">:</span>   <span class="nx">hardEvictionThresholds</span><span class="p">,</span>
+				<span class="p">},</span>
+				<span class="nx">QOSReserved</span><span class="p">:</span>                           <span class="o">*</span><span class="nx">experimentalQOSReserved</span><span class="p">,</span>
+				<span class="nx">ExperimentalCPUManagerPolicy</span><span class="p">:</span>          <span class="nx">s</span><span class="p">.</span><span class="nx">CPUManagerPolicy</span><span class="p">,</span>
+				<span class="nx">ExperimentalCPUManagerReconcilePeriod</span><span class="p">:</span> <span class="nx">s</span><span class="p">.</span><span class="nx">CPUManagerReconcilePeriod</span><span class="p">.</span><span class="nx">Duration</span><span class="p">,</span>
+				<span class="nx">ExperimentalPodPidsLimit</span><span class="p">:</span>              <span class="nx">s</span><span class="p">.</span><span class="nx">PodPidsLimit</span><span class="p">,</span>
+				<span class="nx">EnforceCPULimits</span><span class="p">:</span>                      <span class="nx">s</span><span class="p">.</span><span class="nx">CPUCFSQuota</span><span class="p">,</span>
+				<span class="nx">CPUCFSQuotaPeriod</span><span class="p">:</span>                     <span class="nx">s</span><span class="p">.</span><span class="nx">CPUCFSQuotaPeriod</span><span class="p">.</span><span class="nx">Duration</span><span class="p">,</span>
+				<span class="nx">ExperimentalTopologyManagerPolicy</span><span class="p">:</span>     <span class="nx">s</span><span class="p">.</span><span class="nx">TopologyManagerPolicy</span><span class="p">,</span>
+			<span class="p">},</span>
+			<span class="nx">s</span><span class="p">.</span><span class="nx">FailSwapOn</span><span class="p">,</span>
+			<span class="nx">devicePluginEnabled</span><span class="p">,</span>
+			<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">Recorder</span><span class="p">)</span>
+
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">err</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="o">......</span>
+<span class="c1">//这个函数比较重要，这里针对RuntimeService进行了初始化，
+</span><span class="c1"></span>	<span class="nx">err</span> <span class="p">=</span> <span class="nx">kubelet</span><span class="p">.</span><span class="nf">PreInitRuntimeService</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">KubeletConfiguration</span><span class="p">,</span>
+		<span class="nx">kubeDeps</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">s</span><span class="p">.</span><span class="nx">ContainerRuntimeOptions</span><span class="p">,</span>
+		<span class="nx">s</span><span class="p">.</span><span class="nx">ContainerRuntime</span><span class="p">,</span>
+		<span class="nx">s</span><span class="p">.</span><span class="nx">RuntimeCgroups</span><span class="p">,</span>
+		<span class="nx">s</span><span class="p">.</span><span class="nx">RemoteRuntimeEndpoint</span><span class="p">,</span>
+		<span class="nx">s</span><span class="p">.</span><span class="nx">RemoteImageEndpoint</span><span class="p">,</span>
+		<span class="nx">s</span><span class="p">.</span><span class="nx">NonMasqueradeCIDR</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+<span class="c1">//启动Kubelet
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">RunKubelet</span><span class="p">(</span><span class="nx">s</span><span class="p">,</span> <span class="nx">kubeDeps</span><span class="p">,</span> <span class="nx">s</span><span class="p">.</span><span class="nx">RunOnce</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+<span class="o">......</span>
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>分析<code>PreInitRuntimeService</code>函数，这里完成了RuntimeService的初始化，对Runtime是比较重要的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">PreInitRuntimeService</span><span class="p">(</span><span class="nx">kubeCfg</span> <span class="o">*</span><span class="nx">kubeletconfiginternal</span><span class="p">.</span><span class="nx">KubeletConfiguration</span><span class="p">,</span>
+	<span class="nx">kubeDeps</span> <span class="o">*</span><span class="nx">Dependencies</span><span class="p">,</span>
+	<span class="nx">crOptions</span> <span class="o">*</span><span class="nx">config</span><span class="p">.</span><span class="nx">ContainerRuntimeOptions</span><span class="p">,</span>
+	<span class="nx">containerRuntime</span> <span class="kt">string</span><span class="p">,</span>
+	<span class="nx">runtimeCgroups</span> <span class="kt">string</span><span class="p">,</span>
+	<span class="nx">remoteRuntimeEndpoint</span> <span class="kt">string</span><span class="p">,</span>
+	<span class="nx">remoteImageEndpoint</span> <span class="kt">string</span><span class="p">,</span>
+	<span class="nx">nonMasqueradeCIDR</span> <span class="kt">string</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">remoteRuntimeEndpoint</span> <span class="o">!=</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+		<span class="c1">// remoteImageEndpoint is same as remoteRuntimeEndpoint if not explicitly specified
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nx">remoteImageEndpoint</span> <span class="o">==</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+			<span class="nx">remoteImageEndpoint</span> <span class="p">=</span> <span class="nx">remoteRuntimeEndpoint</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">switch</span> <span class="nx">containerRuntime</span> <span class="p">{</span>
+	<span class="k">case</span> <span class="nx">kubetypes</span><span class="p">.</span><span class="nx">DockerContainerRuntime</span><span class="p">:</span>
+		<span class="c1">// TODO: These need to become arguments to a standalone docker shim.
+</span><span class="c1"></span>    <span class="c1">//初始化网络plugin，在这种模式调用的是dockershim下的CNI。
+</span><span class="c1"></span>		<span class="nx">pluginSettings</span> <span class="o">:=</span> <span class="nx">dockershim</span><span class="p">.</span><span class="nx">NetworkPluginSettings</span><span class="p">{</span>
+			<span class="nx">HairpinMode</span><span class="p">:</span>        <span class="nx">kubeletconfiginternal</span><span class="p">.</span><span class="nf">HairpinMode</span><span class="p">(</span><span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">HairpinMode</span><span class="p">),</span>
+			<span class="nx">NonMasqueradeCIDR</span><span class="p">:</span>  <span class="nx">nonMasqueradeCIDR</span><span class="p">,</span>
+			<span class="nx">PluginName</span><span class="p">:</span>         <span class="nx">crOptions</span><span class="p">.</span><span class="nx">NetworkPluginName</span><span class="p">,</span>
+			<span class="nx">PluginConfDir</span><span class="p">:</span>      <span class="nx">crOptions</span><span class="p">.</span><span class="nx">CNIConfDir</span><span class="p">,</span>
+			<span class="nx">PluginBinDirString</span><span class="p">:</span> <span class="nx">crOptions</span><span class="p">.</span><span class="nx">CNIBinDir</span><span class="p">,</span>
+			<span class="nx">PluginCacheDir</span><span class="p">:</span>     <span class="nx">crOptions</span><span class="p">.</span><span class="nx">CNICacheDir</span><span class="p">,</span>
+			<span class="nx">MTU</span><span class="p">:</span>                <span class="nb">int</span><span class="p">(</span><span class="nx">crOptions</span><span class="p">.</span><span class="nx">NetworkPluginMTU</span><span class="p">),</span>
+		<span class="p">}</span>
+
+		<span class="c1">// Create and start the CRI shim running as a grpc server.流式数据配置初始化
+</span><span class="c1"></span>		<span class="nx">streamingConfig</span> <span class="o">:=</span> <span class="nf">getStreamingConfig</span><span class="p">(</span><span class="nx">kubeCfg</span><span class="p">,</span> <span class="nx">kubeDeps</span><span class="p">,</span> <span class="nx">crOptions</span><span class="p">)</span>
+    <span class="c1">//初始化DockerService，这个提供grpc client服务，调用后面的Docker Server提供的grpc服务，用来创建pod
+</span><span class="c1"></span>		<span class="nx">ds</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">dockershim</span><span class="p">.</span><span class="nf">NewDockerService</span><span class="p">(</span><span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">DockerClientConfig</span><span class="p">,</span> <span class="nx">crOptions</span><span class="p">.</span><span class="nx">PodSandboxImage</span><span class="p">,</span> <span class="nx">streamingConfig</span><span class="p">,</span>
+			<span class="o">&amp;</span><span class="nx">pluginSettings</span><span class="p">,</span> <span class="nx">runtimeCgroups</span><span class="p">,</span> <span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">CgroupDriver</span><span class="p">,</span> <span class="nx">crOptions</span><span class="p">.</span><span class="nx">DockershimRootDirectory</span><span class="p">,</span> <span class="p">!</span><span class="nx">crOptions</span><span class="p">.</span><span class="nx">RedirectContainerStreaming</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="nx">crOptions</span><span class="p">.</span><span class="nx">RedirectContainerStreaming</span> <span class="p">{</span>
+			<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">criHandler</span> <span class="p">=</span> <span class="nx">ds</span>
+		<span class="p">}</span>
+
+		<span class="c1">// The unix socket for kubelet &lt;-&gt; dockershim communication, dockershim start before runtime service init.
+</span><span class="c1"></span>		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;RemoteRuntimeEndpoint: %q, RemoteImageEndpoint: %q&#34;</span><span class="p">,</span>
+			<span class="nx">remoteRuntimeEndpoint</span><span class="p">,</span>
+			<span class="nx">remoteImageEndpoint</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">2</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Starting the GRPC server for the docker CRI shim.&#34;</span><span class="p">)</span>
+		<span class="nx">dockerServer</span> <span class="o">:=</span> <span class="nx">dockerremote</span><span class="p">.</span><span class="nf">NewDockerServer</span><span class="p">(</span><span class="nx">remoteRuntimeEndpoint</span><span class="p">,</span> <span class="nx">ds</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">dockerServer</span><span class="p">.</span><span class="nf">Start</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">err</span>
+		<span class="p">}</span>
+
+		<span class="c1">// Create dockerLegacyService when the logging driver is not supported.
+</span><span class="c1"></span>		<span class="nx">supported</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ds</span><span class="p">.</span><span class="nf">IsCRISupportedLogDriver</span><span class="p">()</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">supported</span> <span class="p">{</span>
+			<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">dockerLegacyService</span> <span class="p">=</span> <span class="nx">ds</span>
+		<span class="p">}</span>
+	<span class="k">case</span> <span class="nx">kubetypes</span><span class="p">.</span><span class="nx">RemoteContainerRuntime</span><span class="p">:</span>
+		<span class="c1">// No-op.
+</span><span class="c1"></span>		<span class="k">break</span>
+	<span class="k">default</span><span class="p">:</span>
+		<span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;unsupported CRI runtime: %q&#34;</span><span class="p">,</span> <span class="nx">containerRuntime</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+	<span class="k">if</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">RemoteRuntimeService</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">remote</span><span class="p">.</span><span class="nf">NewRemoteRuntimeService</span><span class="p">(</span><span class="nx">remoteRuntimeEndpoint</span><span class="p">,</span> <span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">RuntimeRequestTimeout</span><span class="p">.</span><span class="nx">Duration</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">RemoteImageService</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">remote</span><span class="p">.</span><span class="nf">NewRemoteImageService</span><span class="p">(</span><span class="nx">remoteImageEndpoint</span><span class="p">,</span> <span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">RuntimeRequestTimeout</span><span class="p">.</span><span class="nx">Duration</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">useLegacyCadvisorStats</span> <span class="p">=</span> <span class="nx">cadvisor</span><span class="p">.</span><span class="nf">UsingLegacyCadvisorStats</span><span class="p">(</span><span class="nx">containerRuntime</span><span class="p">,</span> <span class="nx">remoteRuntimeEndpoint</span><span class="p">)</span>
+
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里会有两种情况，如果没有设置<code>remote</code>模式的Runtime，这会进入到<code>kubetype.DockerContainerRuntime</code>的分支初始化DockerService，并启动dockershim的gRPC Server。如果是<code>remote</code>模式，则只会初始化<code>RemoteRuntimeService</code>和<code>RemoteImageService</code>。
+再分析上面的<code>NewDockerService</code>函数，这里初始化了docker模式下的Runtime和networkplugin。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span><span class="lnt">91
+</span><span class="lnt">92
+</span><span class="lnt">93
+</span><span class="lnt">94
+</span><span class="lnt">95
+</span><span class="lnt">96
+</span><span class="lnt">97
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">NewDockerService</span><span class="p">(</span><span class="nx">config</span> <span class="o">*</span><span class="nx">ClientConfig</span><span class="p">,</span> <span class="nx">podSandboxImage</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">streamingConfig</span> <span class="o">*</span><span class="nx">streaming</span><span class="p">.</span><span class="nx">Config</span><span class="p">,</span> <span class="nx">pluginSettings</span> <span class="o">*</span><span class="nx">NetworkPluginSettings</span><span class="p">,</span>
+	<span class="nx">cgroupsName</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">kubeCgroupDriver</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">dockershimRootDir</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">startLocalStreamingServer</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">(</span><span class="nx">DockerService</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+
+	<span class="nx">client</span> <span class="o">:=</span> <span class="nf">NewDockerClientFromConfig</span><span class="p">(</span><span class="nx">config</span><span class="p">)</span>
+
+	<span class="nx">c</span> <span class="o">:=</span> <span class="nx">libdocker</span><span class="p">.</span><span class="nf">NewInstrumentedInterface</span><span class="p">(</span><span class="nx">client</span><span class="p">)</span>
+
+	<span class="nx">checkpointManager</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">checkpointmanager</span><span class="p">.</span><span class="nf">NewCheckpointManager</span><span class="p">(</span><span class="nx">filepath</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="nx">dockershimRootDir</span><span class="p">,</span> <span class="nx">sandboxCheckpointDir</span><span class="p">))</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">ds</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">dockerService</span><span class="p">{</span>
+		<span class="nx">client</span><span class="p">:</span>          <span class="nx">c</span><span class="p">,</span>
+		<span class="nx">os</span><span class="p">:</span>              <span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">RealOS</span><span class="p">{},</span>
+		<span class="nx">podSandboxImage</span><span class="p">:</span> <span class="nx">podSandboxImage</span><span class="p">,</span>
+		<span class="nx">streamingRuntime</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">streamingRuntime</span><span class="p">{</span>
+			<span class="nx">client</span><span class="p">:</span>      <span class="nx">client</span><span class="p">,</span>
+			<span class="nx">execHandler</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">NativeExecHandler</span><span class="p">{},</span>
+		<span class="p">},</span>
+		<span class="nx">containerManager</span><span class="p">:</span>          <span class="nx">cm</span><span class="p">.</span><span class="nf">NewContainerManager</span><span class="p">(</span><span class="nx">cgroupsName</span><span class="p">,</span> <span class="nx">client</span><span class="p">),</span>
+		<span class="nx">checkpointManager</span><span class="p">:</span>         <span class="nx">checkpointManager</span><span class="p">,</span>
+		<span class="nx">startLocalStreamingServer</span><span class="p">:</span> <span class="nx">startLocalStreamingServer</span><span class="p">,</span>
+		<span class="nx">networkReady</span><span class="p">:</span>              <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">bool</span><span class="p">),</span>
+		<span class="nx">containerCleanupInfos</span><span class="p">:</span>     <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">containerCleanupInfo</span><span class="p">),</span>
+	<span class="p">}</span>
+
+	<span class="c1">// check docker version compatibility.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">ds</span><span class="p">.</span><span class="nf">checkVersionCompatibility</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="c1">// create streaming server if configured.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">streamingConfig</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+    <span class="c1">//初始化了流式Server，提供exec，attach和portforward功能
+</span><span class="c1"></span>		<span class="nx">ds</span><span class="p">.</span><span class="nx">streamingServer</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">streaming</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span><span class="o">*</span><span class="nx">streamingConfig</span><span class="p">,</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">streamingRuntime</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Determine the hairpin mode.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">effectiveHairpinMode</span><span class="p">(</span><span class="nx">pluginSettings</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="c1">// This is a non-recoverable error. Returning it up the callstack will just
+</span><span class="c1"></span>		<span class="c1">// lead to retries of the same failure, so just fail hard.
+</span><span class="c1"></span>		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Hairpin mode set to %q&#34;</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">HairpinMode</span><span class="p">)</span>
+
+	<span class="c1">// dockershim currently only supports CNI plugins.
+</span><span class="c1"></span>  <span class="c1">//初始化CNI Plugin
+</span><span class="c1"></span>	<span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginBinDirs</span> <span class="p">=</span> <span class="nx">cni</span><span class="p">.</span><span class="nf">SplitDirs</span><span class="p">(</span><span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginBinDirString</span><span class="p">)</span>
+	<span class="nx">cniPlugins</span> <span class="o">:=</span> <span class="nx">cni</span><span class="p">.</span><span class="nf">ProbeNetworkPlugins</span><span class="p">(</span><span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginConfDir</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginCacheDir</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginBinDirs</span><span class="p">)</span>
+	<span class="nx">cniPlugins</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">cniPlugins</span><span class="p">,</span> <span class="nx">kubenet</span><span class="p">.</span><span class="nf">NewPlugin</span><span class="p">(</span><span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginBinDirs</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginCacheDir</span><span class="p">))</span>
+	<span class="nx">netHost</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">dockerNetworkHost</span><span class="p">{</span>
+		<span class="o">&amp;</span><span class="nx">namespaceGetter</span><span class="p">{</span><span class="nx">ds</span><span class="p">},</span>
+		<span class="o">&amp;</span><span class="nx">portMappingGetter</span><span class="p">{</span><span class="nx">ds</span><span class="p">},</span>
+	<span class="p">}</span>
+	<span class="nx">plug</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">network</span><span class="p">.</span><span class="nf">InitNetworkPlugin</span><span class="p">(</span><span class="nx">cniPlugins</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">PluginName</span><span class="p">,</span> <span class="nx">netHost</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">HairpinMode</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">NonMasqueradeCIDR</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">.</span><span class="nx">MTU</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;didn&#39;t find compatible CNI plugin with given settings %+v: %v&#34;</span><span class="p">,</span> <span class="nx">pluginSettings</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+  <span class="c1">//将network plugin的相关数据放入到dockerservice的network结构中，
+</span><span class="c1"></span>	<span class="nx">ds</span><span class="p">.</span><span class="nx">network</span> <span class="p">=</span> <span class="nx">network</span><span class="p">.</span><span class="nf">NewPluginManager</span><span class="p">(</span><span class="nx">plug</span><span class="p">)</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Docker cri networking managed by %v&#34;</span><span class="p">,</span> <span class="nx">plug</span><span class="p">.</span><span class="nf">Name</span><span class="p">())</span>
+
+	<span class="c1">// NOTE: cgroup driver is only detectable in docker 1.11+
+</span><span class="c1"></span>	<span class="nx">cgroupDriver</span> <span class="o">:=</span> <span class="nx">defaultCgroupDriver</span>
+	<span class="nx">dockerInfo</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">client</span><span class="p">.</span><span class="nf">Info</span><span class="p">()</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Docker Info: %+v&#34;</span><span class="p">,</span> <span class="nx">dockerInfo</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Failed to execute Info() call to the Docker client: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;Falling back to use the default driver: %q&#34;</span><span class="p">,</span> <span class="nx">cgroupDriver</span><span class="p">)</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">dockerInfo</span><span class="p">.</span><span class="nx">CgroupDriver</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;No cgroup driver is set in Docker&#34;</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;Falling back to use the default driver: %q&#34;</span><span class="p">,</span> <span class="nx">cgroupDriver</span><span class="p">)</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="nx">cgroupDriver</span> <span class="p">=</span> <span class="nx">dockerInfo</span><span class="p">.</span><span class="nx">CgroupDriver</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">kubeCgroupDriver</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">kubeCgroupDriver</span> <span class="o">!=</span> <span class="nx">cgroupDriver</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;misconfiguration: kubelet cgroup driver: %q is different from docker cgroup driver: %q&#34;</span><span class="p">,</span> <span class="nx">kubeCgroupDriver</span><span class="p">,</span> <span class="nx">cgroupDriver</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Setting cgroupDriver to %s&#34;</span><span class="p">,</span> <span class="nx">cgroupDriver</span><span class="p">)</span>
+	<span class="nx">ds</span><span class="p">.</span><span class="nx">cgroupDriver</span> <span class="p">=</span> <span class="nx">cgroupDriver</span>
+	<span class="nx">ds</span><span class="p">.</span><span class="nx">versionCache</span> <span class="p">=</span> <span class="nx">cache</span><span class="p">.</span><span class="nf">NewObjectCache</span><span class="p">(</span>
+		<span class="kd">func</span><span class="p">()</span> <span class="p">(</span><span class="kd">interface</span><span class="p">{},</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">ds</span><span class="p">.</span><span class="nf">getDockerVersion</span><span class="p">()</span>
+		<span class="p">},</span>
+		<span class="nx">versionCacheTTL</span><span class="p">,</span>
+	<span class="p">)</span>
+
+	<span class="c1">// Register prometheus metrics.
+</span><span class="c1"></span>	<span class="nx">metrics</span><span class="p">.</span><span class="nf">Register</span><span class="p">()</span>
+
+	<span class="k">return</span> <span class="nx">ds</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>NewDockerClientFromConfig</code>中初始化了Docker client，在通过<code>NewInstrumentedInterface</code>将client进行封装。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">NewDockerClientFromConfig</span><span class="p">(</span><span class="nx">config</span> <span class="o">*</span><span class="nx">ClientConfig</span><span class="p">)</span> <span class="nx">libdocker</span><span class="p">.</span><span class="nx">Interface</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">config</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="c1">// Create docker client.
+</span><span class="c1"></span>		<span class="nx">client</span> <span class="o">:=</span> <span class="nx">libdocker</span><span class="p">.</span><span class="nf">ConnectToDockerOrDie</span><span class="p">(</span>
+			<span class="nx">config</span><span class="p">.</span><span class="nx">DockerEndpoint</span><span class="p">,</span>
+			<span class="nx">config</span><span class="p">.</span><span class="nx">RuntimeRequestTimeout</span><span class="p">,</span>
+			<span class="nx">config</span><span class="p">.</span><span class="nx">ImagePullProgressDeadline</span><span class="p">,</span>
+		<span class="p">)</span>
+		<span class="k">return</span> <span class="nx">client</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+<span class="c1">//进行封装
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">NewInstrumentedInterface</span><span class="p">(</span><span class="nx">dockerClient</span> <span class="nx">Interface</span><span class="p">)</span> <span class="nx">Interface</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="nx">instrumentedInterface</span><span class="p">{</span>
+		<span class="nx">client</span><span class="p">:</span> <span class="nx">dockerClient</span><span class="p">,</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>再看<code>cni.ProbeNetworkPlugins</code>在这里完成了Network Plugin的初始化，这里的细节可以再往下看看，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">ProbeNetworkPlugins</span><span class="p">(</span><span class="nx">confDir</span><span class="p">,</span> <span class="nx">cacheDir</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">binDirs</span> <span class="p">[]</span><span class="kt">string</span><span class="p">)</span> <span class="p">[]</span><span class="nx">network</span><span class="p">.</span><span class="nx">NetworkPlugin</span> <span class="p">{</span>
+	<span class="nx">old</span> <span class="o">:=</span> <span class="nx">binDirs</span>
+	<span class="nx">binDirs</span> <span class="p">=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">string</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">binDirs</span><span class="p">))</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">dir</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">old</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">dir</span> <span class="o">!=</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+			<span class="nx">binDirs</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">binDirs</span><span class="p">,</span> <span class="nx">dir</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="nx">plugin</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">cniNetworkPlugin</span><span class="p">{</span>
+		<span class="nx">defaultNetwork</span><span class="p">:</span> <span class="kc">nil</span><span class="p">,</span>
+		<span class="nx">loNetwork</span><span class="p">:</span>      <span class="nf">getLoNetwork</span><span class="p">(</span><span class="nx">binDirs</span><span class="p">),</span>
+		<span class="nx">execer</span><span class="p">:</span>         <span class="nx">utilexec</span><span class="p">.</span><span class="nf">New</span><span class="p">(),</span>
+		<span class="nx">confDir</span><span class="p">:</span>        <span class="nx">confDir</span><span class="p">,</span>
+		<span class="nx">binDirs</span><span class="p">:</span>        <span class="nx">binDirs</span><span class="p">,</span>
+		<span class="nx">cacheDir</span><span class="p">:</span>       <span class="nx">cacheDir</span><span class="p">,</span>
+	<span class="p">}</span>
+
+	<span class="c1">// sync NetworkConfig in best effort during probing.
+</span><span class="c1"></span>	<span class="nx">plugin</span><span class="p">.</span><span class="nf">syncNetworkConfig</span><span class="p">()</span>
+	<span class="k">return</span> <span class="p">[]</span><span class="nx">network</span><span class="p">.</span><span class="nx">NetworkPlugin</span><span class="p">{</span><span class="nx">plugin</span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在前面还初始化了<code>ContainerManager</code>这个结构服务Container的cgroup、QoS、CpuSet、Device等管理
+前面基本分析完了DockerService的初始化，接下来分析grpc的DockerServer初始化，<code>dockerremote.NewDockerServer(remoteRuntimeEndpoint, ds)</code>，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">NewDockerServer</span><span class="p">(</span><span class="nx">endpoint</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">s</span> <span class="nx">dockershim</span><span class="p">.</span><span class="nx">CRIService</span><span class="p">)</span> <span class="o">*</span><span class="nx">DockerServer</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">DockerServer</span><span class="p">{</span>
+		<span class="nx">endpoint</span><span class="p">:</span> <span class="nx">endpoint</span><span class="p">,</span>
+		<span class="nx">service</span><span class="p">:</span>  <span class="nx">s</span><span class="p">,</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后启动dockerServer grpcServer端，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">s</span> <span class="o">*</span><span class="nx">DockerServer</span><span class="p">)</span> <span class="nf">Start</span><span class="p">()</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="c1">// Start the internal service.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">s</span><span class="p">.</span><span class="nx">service</span><span class="p">.</span><span class="nf">Start</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to start docker service&#34;</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">2</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Start dockershim grpc server&#34;</span><span class="p">)</span>
+	<span class="nx">l</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">util</span><span class="p">.</span><span class="nf">CreateListener</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">endpoint</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to listen on %q: %v&#34;</span><span class="p">,</span> <span class="nx">s</span><span class="p">.</span><span class="nx">endpoint</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="c1">// Create the grpc server and register runtime and image services.
+</span><span class="c1"></span>	<span class="nx">s</span><span class="p">.</span><span class="nx">server</span> <span class="p">=</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">NewServer</span><span class="p">(</span>
+		<span class="nx">grpc</span><span class="p">.</span><span class="nf">MaxRecvMsgSize</span><span class="p">(</span><span class="nx">maxMsgSize</span><span class="p">),</span>
+		<span class="nx">grpc</span><span class="p">.</span><span class="nf">MaxSendMsgSize</span><span class="p">(</span><span class="nx">maxMsgSize</span><span class="p">),</span>
+	<span class="p">)</span>
+	<span class="nx">runtimeapi</span><span class="p">.</span><span class="nf">RegisterRuntimeServiceServer</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">server</span><span class="p">,</span> <span class="nx">s</span><span class="p">.</span><span class="nx">service</span><span class="p">)</span>
+	<span class="nx">runtimeapi</span><span class="p">.</span><span class="nf">RegisterImageServiceServer</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">server</span><span class="p">,</span> <span class="nx">s</span><span class="p">.</span><span class="nx">service</span><span class="p">)</span>
+	<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">s</span><span class="p">.</span><span class="nx">server</span><span class="p">.</span><span class="nf">Serve</span><span class="p">(</span><span class="nx">l</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">Fatalf</span><span class="p">(</span><span class="s">&#34;Failed to serve connections: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}()</span>
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>初始化<code>RemoteRuntimeService</code>和<code>RemoteImageService</code>，如果是<code>remote</code>模式也会在这里初始化，相对于<code>Docker</code>模式，少了上面对<code>dockershim</code>中grpc的初始化。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+	<span class="k">if</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">RemoteRuntimeService</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">remote</span><span class="p">.</span><span class="nf">NewRemoteRuntimeService</span><span class="p">(</span><span class="nx">remoteRuntimeEndpoint</span><span class="p">,</span> <span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">RuntimeRequestTimeout</span><span class="p">.</span><span class="nx">Duration</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">RemoteImageService</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">remote</span><span class="p">.</span><span class="nf">NewRemoteImageService</span><span class="p">(</span><span class="nx">remoteImageEndpoint</span><span class="p">,</span> <span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">RuntimeRequestTimeout</span><span class="p">.</span><span class="nx">Duration</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>再来分析具体的实现部分，这里会和<code>dockershim</code>建立grpc连接，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">NewRemoteRuntimeService</span><span class="p">(</span><span class="nx">endpoint</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">connectionTimeout</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="p">(</span><span class="nx">internalapi</span><span class="p">.</span><span class="nx">RuntimeService</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Connecting to runtime service %s&#34;</span><span class="p">,</span> <span class="nx">endpoint</span><span class="p">)</span>
+	<span class="nx">addr</span><span class="p">,</span> <span class="nx">dialer</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">util</span><span class="p">.</span><span class="nf">GetAddressAndDialer</span><span class="p">(</span><span class="nx">endpoint</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">ctx</span><span class="p">,</span> <span class="nx">cancel</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithTimeout</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(),</span> <span class="nx">connectionTimeout</span><span class="p">)</span>
+	<span class="k">defer</span> <span class="nf">cancel</span><span class="p">()</span>
+<span class="c1">//建立grpc连接，
+</span><span class="c1"></span>	<span class="nx">conn</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">DialContext</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">addr</span><span class="p">,</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">WithInsecure</span><span class="p">(),</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">WithContextDialer</span><span class="p">(</span><span class="nx">dialer</span><span class="p">),</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">WithDefaultCallOptions</span><span class="p">(</span><span class="nx">grpc</span><span class="p">.</span><span class="nf">MaxCallRecvMsgSize</span><span class="p">(</span><span class="nx">maxMsgSize</span><span class="p">)))</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Connect remote runtime %s failed: %v&#34;</span><span class="p">,</span> <span class="nx">addr</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+<span class="c1">//初始化RemoteRuntimeService结构，这里是grpc的client部分。
+</span><span class="c1"></span>	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">RemoteRuntimeService</span><span class="p">{</span>
+		<span class="nx">timeout</span><span class="p">:</span>       <span class="nx">connectionTimeout</span><span class="p">,</span>
+		<span class="nx">runtimeClient</span><span class="p">:</span> <span class="nx">runtimeapi</span><span class="p">.</span><span class="nf">NewRuntimeServiceClient</span><span class="p">(</span><span class="nx">conn</span><span class="p">),</span>
+		<span class="nx">logReduction</span><span class="p">:</span>  <span class="nx">logreduction</span><span class="p">.</span><span class="nf">NewLogReduction</span><span class="p">(</span><span class="nx">identicalErrorDelay</span><span class="p">),</span>
+	<span class="p">},</span> <span class="kc">nil</span>
+<span class="p">}</span>
+<span class="c1">//ImageService和RuntimeService是相同的，如果endpoint是同一个，则是一样的，在dockershim中，两个都在dockershim中实现了。
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">NewRemoteImageService</span><span class="p">(</span><span class="nx">endpoint</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">connectionTimeout</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="p">(</span><span class="nx">internalapi</span><span class="p">.</span><span class="nx">ImageManagerService</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Connecting to image service %s&#34;</span><span class="p">,</span> <span class="nx">endpoint</span><span class="p">)</span>
+	<span class="nx">addr</span><span class="p">,</span> <span class="nx">dialer</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">util</span><span class="p">.</span><span class="nf">GetAddressAndDialer</span><span class="p">(</span><span class="nx">endpoint</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">ctx</span><span class="p">,</span> <span class="nx">cancel</span> <span class="o">:=</span> <span class="nx">context</span><span class="p">.</span><span class="nf">WithTimeout</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">Background</span><span class="p">(),</span> <span class="nx">connectionTimeout</span><span class="p">)</span>
+	<span class="k">defer</span> <span class="nf">cancel</span><span class="p">()</span>
+
+	<span class="nx">conn</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">DialContext</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">addr</span><span class="p">,</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">WithInsecure</span><span class="p">(),</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">WithContextDialer</span><span class="p">(</span><span class="nx">dialer</span><span class="p">),</span> <span class="nx">grpc</span><span class="p">.</span><span class="nf">WithDefaultCallOptions</span><span class="p">(</span><span class="nx">grpc</span><span class="p">.</span><span class="nf">MaxCallRecvMsgSize</span><span class="p">(</span><span class="nx">maxMsgSize</span><span class="p">)))</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Connect remote image service %s failed: %v&#34;</span><span class="p">,</span> <span class="nx">addr</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">RemoteImageService</span><span class="p">{</span>
+		<span class="nx">timeout</span><span class="p">:</span>     <span class="nx">connectionTimeout</span><span class="p">,</span>
+		<span class="nx">imageClient</span><span class="p">:</span> <span class="nx">runtimeapi</span><span class="p">.</span><span class="nf">NewImageServiceClient</span><span class="p">(</span><span class="nx">conn</span><span class="p">),</span>
+	<span class="p">},</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>再 往下到<code>NewMainKubelet</code>，初始化Kubelet，这个函数还是很复杂，我们只关注其中一部分，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="k">if</span> <span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">PodConfig</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+    <span class="c1">//初始化podConfig，这里会启动一个Reflector来监听来自kube-apiserver的pod变化，如果有数据则会存储到PodConfig中。
+</span><span class="c1"></span>		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">PodConfig</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nf">makePodSourceConfig</span><span class="p">(</span><span class="nx">kubeCfg</span><span class="p">,</span> <span class="nx">kubeDeps</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">,</span> <span class="nx">bootstrapCheckpointPath</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="o">......</span>
+<span class="nx">runtime</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">kuberuntime</span><span class="p">.</span><span class="nf">NewKubeGenericRuntimeManager</span><span class="p">(</span>
+		<span class="nx">kubecontainer</span><span class="p">.</span><span class="nf">FilterEventRecorder</span><span class="p">(</span><span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">Recorder</span><span class="p">),</span>
+		<span class="nx">klet</span><span class="p">.</span><span class="nx">livenessManager</span><span class="p">,</span>
+		<span class="nx">klet</span><span class="p">.</span><span class="nx">startupManager</span><span class="p">,</span>
+		<span class="nx">seccompProfileRoot</span><span class="p">,</span>
+		<span class="nx">containerRefManager</span><span class="p">,</span>
+		<span class="nx">machineInfo</span><span class="p">,</span>
+		<span class="nx">klet</span><span class="p">,</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">OSInterface</span><span class="p">,</span>
+		<span class="nx">klet</span><span class="p">,</span>
+		<span class="nx">httpClient</span><span class="p">,</span>
+		<span class="nx">imageBackOff</span><span class="p">,</span>
+		<span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">SerializeImagePulls</span><span class="p">,</span>
+		<span class="nb">float32</span><span class="p">(</span><span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">RegistryPullQPS</span><span class="p">),</span>
+		<span class="nb">int</span><span class="p">(</span><span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">RegistryBurst</span><span class="p">),</span>
+		<span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">CPUCFSQuota</span><span class="p">,</span>
+		<span class="nx">kubeCfg</span><span class="p">.</span><span class="nx">CPUCFSQuotaPeriod</span><span class="p">,</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">RemoteRuntimeService</span><span class="p">,</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">RemoteImageService</span><span class="p">,</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">ContainerManager</span><span class="p">.</span><span class="nf">InternalContainerLifecycle</span><span class="p">(),</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">dockerLegacyService</span><span class="p">,</span>
+		<span class="nx">klet</span><span class="p">.</span><span class="nx">runtimeClassManager</span><span class="p">,</span>
+	<span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">klet</span><span class="p">.</span><span class="nx">containerRuntime</span> <span class="p">=</span> <span class="nx">runtime</span>
+	<span class="nx">klet</span><span class="p">.</span><span class="nx">streamingRuntime</span> <span class="p">=</span> <span class="nx">runtime</span>
+	<span class="nx">klet</span><span class="p">.</span><span class="nx">runner</span> <span class="p">=</span> <span class="nx">runtime</span>
+
+	<span class="nx">runtimeCache</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nf">NewRuntimeCache</span><span class="p">(</span><span class="nx">klet</span><span class="p">.</span><span class="nx">containerRuntime</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">klet</span><span class="p">.</span><span class="nx">runtimeCache</span> <span class="p">=</span> <span class="nx">runtimeCache</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>NewKubeGenericRuntimeManager</code>中，我们先着重关注两个参数的实现，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">kubeRuntimeManager</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">kubeGenericRuntimeManager</span><span class="p">{</span>
+		<span class="nx">recorder</span><span class="p">:</span>            <span class="nx">recorder</span><span class="p">,</span>
+		<span class="nx">cpuCFSQuota</span><span class="p">:</span>         <span class="nx">cpuCFSQuota</span><span class="p">,</span>
+		<span class="nx">cpuCFSQuotaPeriod</span><span class="p">:</span>   <span class="nx">cpuCFSQuotaPeriod</span><span class="p">,</span>
+		<span class="nx">seccompProfileRoot</span><span class="p">:</span>  <span class="nx">seccompProfileRoot</span><span class="p">,</span>
+		<span class="nx">livenessManager</span><span class="p">:</span>     <span class="nx">livenessManager</span><span class="p">,</span>
+		<span class="nx">startupManager</span><span class="p">:</span>      <span class="nx">startupManager</span><span class="p">,</span>
+		<span class="nx">containerRefManager</span><span class="p">:</span> <span class="nx">containerRefManager</span><span class="p">,</span>
+		<span class="nx">machineInfo</span><span class="p">:</span>         <span class="nx">machineInfo</span><span class="p">,</span>
+		<span class="nx">osInterface</span><span class="p">:</span>         <span class="nx">osInterface</span><span class="p">,</span>
+		<span class="nx">runtimeHelper</span><span class="p">:</span>       <span class="nx">runtimeHelper</span><span class="p">,</span>
+    <span class="c1">//这两个是比较重要的结构，在dockershim模式下，这里封装的是前面初始化的RemoteRuntimeService和RemoteImageService
+</span><span class="c1"></span>		<span class="nx">runtimeService</span><span class="p">:</span>      <span class="nf">newInstrumentedRuntimeService</span><span class="p">(</span><span class="nx">runtimeService</span><span class="p">),</span>
+		<span class="nx">imageService</span><span class="p">:</span>        <span class="nf">newInstrumentedImageManagerService</span><span class="p">(</span><span class="nx">imageService</span><span class="p">),</span>
+		<span class="nx">keyring</span><span class="p">:</span>             <span class="nx">credentialprovider</span><span class="p">.</span><span class="nf">NewDockerKeyring</span><span class="p">(),</span>
+		<span class="nx">internalLifecycle</span><span class="p">:</span>   <span class="nx">internalLifecycle</span><span class="p">,</span>
+		<span class="nx">legacyLogProvider</span><span class="p">:</span>   <span class="nx">legacyLogProvider</span><span class="p">,</span>
+		<span class="nx">runtimeClassManager</span><span class="p">:</span> <span class="nx">runtimeClassManager</span><span class="p">,</span>
+		<span class="nx">logReduction</span><span class="p">:</span>        <span class="nx">logreduction</span><span class="p">.</span><span class="nf">NewLogReduction</span><span class="p">(</span><span class="nx">identicalErrorDelay</span><span class="p">),</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后再看到<code>startKubelet</code>结构，这中间省略一些步骤，kubelet通过<code>dispatchWork</code>的方式处理pod，然后调用<code>kl.podWorkers.UpdatePod</code>，然后通过调用podWorkers的<code>syncPod</code>，所有的pod处理过程都将会经过syncPod函数，在<code>kubelet.syncPod</code>中调用<code>kl.containerRuntime.SyncPod</code>，在这里完成pod的创建工作。这个函数主要分为以下几个步骤，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"> <span class="nx">SyncPod</span> <span class="nx">syncs</span> <span class="nx">the</span> <span class="nx">running</span> <span class="nx">pod</span> <span class="nx">into</span> <span class="nx">the</span> <span class="nx">desired</span> <span class="nx">pod</span> <span class="nx">by</span> <span class="nx">executing</span> <span class="nx">following</span> <span class="nx">steps</span><span class="p">:</span>
+
+  <span class="mf">1.</span> <span class="nx">Compute</span> <span class="nx">sandbox</span> <span class="nx">and</span> <span class="nx">container</span> <span class="nx">changes</span><span class="p">.</span><span class="c1">//通过`computePodActions`计算sandbox和container的变化
+</span><span class="c1"></span>  <span class="mf">2.</span> <span class="nx">Kill</span> <span class="nx">pod</span> <span class="nx">sandbox</span> <span class="k">if</span> <span class="nx">necessary</span><span class="p">.</span><span class="c1">//根据上面计算的结果，如果sandbox发生了改变，则会删除已经存在的pod
+</span><span class="c1"></span>  <span class="mf">3.</span> <span class="nx">Kill</span> <span class="nx">any</span> <span class="nx">containers</span> <span class="nx">that</span> <span class="nx">should</span> <span class="nx">not</span> <span class="nx">be</span> <span class="nx">running</span><span class="p">.</span><span class="c1">//删除如果需要删除的容器
+</span><span class="c1"></span>  <span class="mf">4.</span> <span class="nx">Create</span> <span class="nx">sandbox</span> <span class="k">if</span> <span class="nx">necessary</span><span class="p">.</span><span class="c1">//创建新的sandbox
+</span><span class="c1"></span>  <span class="mf">5.</span> <span class="nx">Create</span> <span class="nx">ephemeral</span> <span class="nx">containers</span><span class="p">.</span>
+  <span class="mf">6.</span> <span class="nx">Create</span> <span class="nx">init</span> <span class="nx">containers</span><span class="p">.</span>
+  <span class="mf">7.</span> <span class="nx">Create</span> <span class="nx">normal</span> <span class="nx">containers</span><span class="p">.</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里我们重点看创建Sandbox部分，<code>m.createPodSandbox</code>，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// createPodSandbox creates a pod sandbox and returns (podSandBoxID, message, error).
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">kubeGenericRuntimeManager</span><span class="p">)</span> <span class="nf">createPodSandbox</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">attempt</span> <span class="kt">uint32</span><span class="p">)</span> <span class="p">(</span><span class="kt">string</span><span class="p">,</span> <span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">podSandboxConfig</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nf">generatePodSandboxConfig</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">attempt</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">message</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;GeneratePodSandboxConfig for pod %q failed: %v&#34;</span><span class="p">,</span> <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">message</span><span class="p">)</span>
+		<span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">message</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Create pod logs directory
+</span><span class="c1"></span>	<span class="nx">err</span> <span class="p">=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">osInterface</span><span class="p">.</span><span class="nf">MkdirAll</span><span class="p">(</span><span class="nx">podSandboxConfig</span><span class="p">.</span><span class="nx">LogDirectory</span><span class="p">,</span> <span class="mo">0755</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">message</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;Create pod log directory for pod %q failed: %v&#34;</span><span class="p">,</span> <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">message</span><span class="p">)</span>
+		<span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">message</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">runtimeHandler</span> <span class="o">:=</span> <span class="s">&#34;&#34;</span>
+	<span class="k">if</span> <span class="nx">utilfeature</span><span class="p">.</span><span class="nx">DefaultFeatureGate</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">features</span><span class="p">.</span><span class="nx">RuntimeClass</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="nx">m</span><span class="p">.</span><span class="nx">runtimeClassManager</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">runtimeHandler</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">runtimeClassManager</span><span class="p">.</span><span class="nf">LookupRuntimeHandler</span><span class="p">(</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">RuntimeClassName</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">message</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;CreatePodSandbox for pod %q failed: %v&#34;</span><span class="p">,</span> <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">message</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="nx">runtimeHandler</span> <span class="o">!=</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">2</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Running pod %s with RuntimeHandler %q&#34;</span><span class="p">,</span> <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">runtimeHandler</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="nx">podSandBoxID</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">runtimeService</span><span class="p">.</span><span class="nf">RunPodSandbox</span><span class="p">(</span><span class="nx">podSandboxConfig</span><span class="p">,</span> <span class="nx">runtimeHandler</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">message</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;CreatePodSandbox for pod %q failed: %v&#34;</span><span class="p">,</span> <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">message</span><span class="p">)</span>
+		<span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">message</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nx">podSandBoxID</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里主要是通过grpc调用<code>RunPodSandbox</code>接口来实现创建过程，主要分为两种情况，其中一种是默认的<code>docker</code>模式，还有一种是<code>remote</code>，这里主要分析第一种情况。通过调用dockershim实现的grpc client，也就是前面通过<code>NewRemoteRuntimeService</code>创建。然后再通过client调用，具体这个grpc的client实现是在前面的<code>PreInitRuntimeService</code>中实现的<code>DockerServer</code>。先分析一下<code>dockerService</code>的RunPodSandbox。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// pkg/kubelet/dockershim/docker_sandbox.go
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">ds</span> <span class="o">*</span><span class="nx">dockerService</span><span class="p">)</span> <span class="nf">RunPodSandbox</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">runtimeapi</span><span class="p">.</span><span class="nx">RunPodSandboxRequest</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">runtimeapi</span><span class="p">.</span><span class="nx">RunPodSandboxResponse</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">config</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">.</span><span class="nf">GetConfig</span><span class="p">()</span>
+
+	<span class="c1">// Step 1: Pull the image for the sandbox.
+</span><span class="c1"></span><span class="o">...</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">ensureSandboxImageExists</span><span class="p">(</span><span class="nx">ds</span><span class="p">.</span><span class="nx">client</span><span class="p">,</span> <span class="nx">image</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Step 2: Create the sandbox container.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nf">GetRuntimeHandler</span><span class="p">()</span> <span class="o">!=</span> <span class="s">&#34;&#34;</span> <span class="o">&amp;&amp;</span> <span class="nx">r</span><span class="p">.</span><span class="nf">GetRuntimeHandler</span><span class="p">()</span> <span class="o">!=</span> <span class="nx">runtimeName</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;RuntimeHandler %q not supported&#34;</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nf">GetRuntimeHandler</span><span class="p">())</span>
+	<span class="p">}</span>
+	<span class="nx">createConfig</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ds</span><span class="p">.</span><span class="nf">makeSandboxDockerConfig</span><span class="p">(</span><span class="nx">config</span><span class="p">,</span> <span class="nx">image</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to make sandbox docker config for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+  <span class="c1">//创建sandbox
+</span><span class="c1"></span>	<span class="nx">createResp</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">client</span><span class="p">.</span><span class="nf">CreateContainer</span><span class="p">(</span><span class="o">*</span><span class="nx">createConfig</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">createResp</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nf">recoverFromCreationConflictIfNeeded</span><span class="p">(</span><span class="nx">ds</span><span class="p">.</span><span class="nx">client</span><span class="p">,</span> <span class="o">*</span><span class="nx">createConfig</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">createResp</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to create a sandbox for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="nx">resp</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">runtimeapi</span><span class="p">.</span><span class="nx">RunPodSandboxResponse</span><span class="p">{</span><span class="nx">PodSandboxId</span><span class="p">:</span> <span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">}</span>
+
+	<span class="nx">ds</span><span class="p">.</span><span class="nf">setNetworkReady</span><span class="p">(</span><span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="kc">false</span><span class="p">)</span>
+	<span class="k">defer</span> <span class="kd">func</span><span class="p">(</span><span class="nx">e</span> <span class="o">*</span><span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+		<span class="c1">// Set networking ready depending on the error return of
+</span><span class="c1"></span>		<span class="c1">// the parent function
+</span><span class="c1"></span>		<span class="k">if</span> <span class="o">*</span><span class="nx">e</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">ds</span><span class="p">.</span><span class="nf">setNetworkReady</span><span class="p">(</span><span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="kc">true</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}(</span><span class="o">&amp;</span><span class="nx">err</span><span class="p">)</span>
+
+	<span class="c1">// Step 3: Create Sandbox Checkpoint.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">checkpointManager</span><span class="p">.</span><span class="nf">CreateCheckpoint</span><span class="p">(</span><span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="nf">constructPodSandboxCheckpoint</span><span class="p">(</span><span class="nx">config</span><span class="p">));</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Step 4: Start the sandbox container.
+</span><span class="c1"></span>	<span class="c1">// Assume kubelet&#39;s garbage collector would remove the sandbox later, if
+</span><span class="c1"></span>	<span class="c1">// startContainer failed.
+</span><span class="c1"></span>	<span class="nx">err</span> <span class="p">=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">client</span><span class="p">.</span><span class="nf">StartContainer</span><span class="p">(</span><span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to start sandbox container for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Rewrite resolv.conf file generated by docker.
+</span><span class="c1"></span>	<span class="c1">// NOTE: cluster dns settings aren&#39;t passed anymore to docker api in all cases,
+</span><span class="c1"></span>	<span class="c1">// not only for pods with host network: the resolver conf will be overwritten
+</span><span class="c1"></span>	<span class="c1">// after sandbox creation to override docker&#39;s behaviour. This resolv.conf
+</span><span class="c1"></span>	<span class="c1">// file is shared by all containers of the same pod, and needs to be modified
+</span><span class="c1"></span>	<span class="c1">// only once per pod.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">dnsConfig</span> <span class="o">:=</span> <span class="nx">config</span><span class="p">.</span><span class="nf">GetDnsConfig</span><span class="p">();</span> <span class="nx">dnsConfig</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">containerInfo</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">client</span><span class="p">.</span><span class="nf">InspectContainer</span><span class="p">(</span><span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to inspect sandbox container for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">rewriteResolvFile</span><span class="p">(</span><span class="nx">containerInfo</span><span class="p">.</span><span class="nx">ResolvConfPath</span><span class="p">,</span> <span class="nx">dnsConfig</span><span class="p">.</span><span class="nx">Servers</span><span class="p">,</span> <span class="nx">dnsConfig</span><span class="p">.</span><span class="nx">Searches</span><span class="p">,</span> <span class="nx">dnsConfig</span><span class="p">.</span><span class="nx">Options</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;rewrite resolv.conf failed for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Do not invoke network plugins if in hostNetwork mode.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">config</span><span class="p">.</span><span class="nf">GetLinux</span><span class="p">().</span><span class="nf">GetSecurityContext</span><span class="p">().</span><span class="nf">GetNamespaceOptions</span><span class="p">().</span><span class="nf">GetNetwork</span><span class="p">()</span> <span class="o">==</span> <span class="nx">runtimeapi</span><span class="p">.</span><span class="nx">NamespaceMode_NODE</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">resp</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Step 5: Setup networking for the sandbox.
+</span><span class="c1"></span>	<span class="c1">// All pod networking is setup by a CNI plugin discovered at startup time.
+</span><span class="c1"></span>	<span class="c1">// This plugin assigns the pod ip, sets up routes inside the sandbox,
+</span><span class="c1"></span>	<span class="c1">// creates interfaces etc. In theory, its jurisdiction ends with pod
+</span><span class="c1"></span>	<span class="c1">// sandbox networking, but it might insert iptables rules or open ports
+</span><span class="c1"></span>	<span class="c1">// on the host as well, to satisfy parts of the pod spec that aren&#39;t
+</span><span class="c1"></span>	<span class="c1">// recognized by the CNI standard yet.
+</span><span class="c1"></span>	<span class="nx">cID</span> <span class="o">:=</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nf">BuildContainerID</span><span class="p">(</span><span class="nx">runtimeName</span><span class="p">,</span> <span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">)</span>
+	<span class="nx">networkOptions</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">string</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">dnsConfig</span> <span class="o">:=</span> <span class="nx">config</span><span class="p">.</span><span class="nf">GetDnsConfig</span><span class="p">();</span> <span class="nx">dnsConfig</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="c1">// Build DNS options.
+</span><span class="c1"></span>		<span class="nx">dnsOption</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">json</span><span class="p">.</span><span class="nf">Marshal</span><span class="p">(</span><span class="nx">dnsConfig</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to marshal dns config for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">networkOptions</span><span class="p">[</span><span class="s">&#34;dns&#34;</span><span class="p">]</span> <span class="p">=</span> <span class="nb">string</span><span class="p">(</span><span class="nx">dnsOption</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="nx">err</span> <span class="p">=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">network</span><span class="p">.</span><span class="nf">SetUpPod</span><span class="p">(</span><span class="nx">config</span><span class="p">.</span><span class="nf">GetMetadata</span><span class="p">().</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nf">GetMetadata</span><span class="p">().</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">cID</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Annotations</span><span class="p">,</span> <span class="nx">networkOptions</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">errList</span> <span class="o">:=</span> <span class="p">[]</span><span class="kt">error</span><span class="p">{</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to set up sandbox container %q network for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)}</span>
+
+		<span class="c1">// Ensure network resources are cleaned up even if the plugin
+</span><span class="c1"></span>		<span class="c1">// succeeded but an error happened between that success and here.
+</span><span class="c1"></span>		<span class="nx">err</span> <span class="p">=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">network</span><span class="p">.</span><span class="nf">TearDownPod</span><span class="p">(</span><span class="nx">config</span><span class="p">.</span><span class="nf">GetMetadata</span><span class="p">().</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nf">GetMetadata</span><span class="p">().</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">cID</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">errList</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">errList</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to clean up sandbox container %q network for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">))</span>
+		<span class="p">}</span>
+
+		<span class="nx">err</span> <span class="p">=</span> <span class="nx">ds</span><span class="p">.</span><span class="nx">client</span><span class="p">.</span><span class="nf">StopContainer</span><span class="p">(</span><span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="nx">defaultSandboxGracePeriod</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">errList</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">errList</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to stop sandbox container %q for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">createResp</span><span class="p">.</span><span class="nx">ID</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">Metadata</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">))</span>
+		<span class="p">}</span>
+
+		<span class="k">return</span> <span class="nx">resp</span><span class="p">,</span> <span class="nx">utilerrors</span><span class="p">.</span><span class="nf">NewAggregate</span><span class="p">(</span><span class="nx">errList</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nx">resp</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在上面先通过调用client创建sandbox容器，然后调用CNI的<code>SetUpPod</code>初始化网络。如果后期有需要再相关需要再来细看吧。</p>
+<h2 id="参考文档">参考文档</h2>
+<ul>
+<li><a href="https://mp.weixin.qq.com/s/Zpvp_or3k23vSMRCLmYNFg">https://mp.weixin.qq.com/s/Zpvp_or3k23vSMRCLmYNFg</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/87602649">https://zhuanlan.zhihu.com/p/87602649</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/73728920">https://zhuanlan.zhihu.com/p/73728920</a></li>
+</ul>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-08-11 11:37
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/cni/">cni</a>
+          <a href="/tags/cri/">cri</a>
+          <a href="/tags/kubelet/">kubelet</a>
+          </div>
+      <nav class="post-nav">
+        <a class="prev" href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</span>
+            <span class="prev-text nav-mobile">上一篇</span>
+          </a>
+        <a class="next" href="/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/">
+            <span class="next-text nav-default">[Kubernetes]Index结构分析</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="mailto:your@email.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
