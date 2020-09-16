@@ -101,5 +101,23 @@
       <description></description>
     </item>
     
+    <item>
+      <title>endpointcontroller</title>
+      <link>https://zwForrest.github.io/tags/endpointcontroller/</link>
+      <pubDate>Mon, 18 May 2020 18:33:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/endpointcontroller/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kube-controller-manager</title>
+      <link>https://zwForrest.github.io/tags/kube-controller-manager/</link>
+      <pubDate>Mon, 18 May 2020 18:33:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kube-controller-manager/</guid>
+      <description></description>
+    </item>
+    
   </channel>
 </rss>
