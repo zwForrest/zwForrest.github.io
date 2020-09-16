@@ -141,6 +141,7 @@
   <div class="post-toc-content always-active">
     <nav id="TableOfContents">
   <ul>
+    <li><a href="#new">New</a></li>
     <li><a href="#run">Run</a></li>
   </ul>
 </nav>
@@ -148,7 +149,7 @@
 </div>
     <div class="post-content">
       <p>为了对接公司内部的4层负载均衡，我们决定自己写一套节点挂载控制器，然后先分析了现有的endpointController相关实现。具体如下。</p>
-<p>##New</p>
+<h2 id="new">New</h2>
 <p>所有的controller都是在<code>NewControllerInitializers</code>中初始化的，这里就是<code>startEndpointController</code>,</p>
 <div class="highlight"><div class="chroma">
 <table class="lntable"><tr><td class="lntd">
