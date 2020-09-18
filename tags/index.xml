@@ -102,6 +102,24 @@
     </item>
     
     <item>
+      <title>liveness</title>
+      <link>https://zwForrest.github.io/tags/liveness/</link>
+      <pubDate>Mon, 01 Jun 2020 15:31:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/liveness/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>readiness</title>
+      <link>https://zwForrest.github.io/tags/readiness/</link>
+      <pubDate>Mon, 01 Jun 2020 15:31:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/readiness/</guid>
+      <description></description>
+    </item>
+    
+    <item>
       <title>endpointcontroller</title>
       <link>https://zwForrest.github.io/tags/endpointcontroller/</link>
       <pubDate>Mon, 18 May 2020 18:33:56 +0800</pubDate>

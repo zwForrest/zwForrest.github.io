@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] Kube-apiserver存储ETCD架构及源码分析 - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="为了保证服务能够正常提供服务，k8s提供了容器健康检查和就需检查功能，目前支持TCP、Http、和命令三种方式， 这里将不会分析所有的流程，只" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/kubelet%E6%8E%A2%E6%B4%BB%E6%9C%BA%E5%88%B6%E5%92%8C%E7%8A%B6%E6%80%81%E7%AE%A1%E7%90%86/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] Kube-apiserver存储ETCD架构及源码分析" />
+<meta property="og:description" content="为了保证服务能够正常提供服务，k8s提供了容器健康检查和就需检查功能，目前支持TCP、Http、和命令三种方式， 这里将不会分析所有的流程，只" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/kubelet%E6%8E%A2%E6%B4%BB%E6%9C%BA%E5%88%B6%E5%92%8C%E7%8A%B6%E6%80%81%E7%AE%A1%E7%90%86/" />
+<meta property="article:published_time" content="2020-06-01T15:31:56+08:00" />
+<meta property="article:modified_time" content="2020-06-01T15:31:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] Kube-apiserver存储ETCD架构及源码分析">
+<meta itemprop="description" content="为了保证服务能够正常提供服务，k8s提供了容器健康检查和就需检查功能，目前支持TCP、Http、和命令三种方式， 这里将不会分析所有的流程，只">
+<meta itemprop="datePublished" content="2020-06-01T15:31:56+08:00" />
+<meta itemprop="dateModified" content="2020-06-01T15:31:56+08:00" />
+<meta itemprop="wordCount" content="3709">
+
+
+
+<meta itemprop="keywords" content="kubernetes,kubelet,liveness,readiness," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] Kube-apiserver存储ETCD架构及源码分析"/>
+<meta name="twitter:description" content="为了保证服务能够正常提供服务，k8s提供了容器健康检查和就需检查功能，目前支持TCP、Http、和命令三种方式， 这里将不会分析所有的流程，只"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-06-01 15:31 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 3709 字 </span>
+          <span class="more-meta"> 预计阅读 8 分钟 </span>
+        <span id="busuanzi_container_page_pv" class="more-meta"> <span id="busuanzi_value_page_pv"><img src="/img/spinner.svg" alt="spinner.svg"/></span> 次阅读 </span>
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents"></nav>
+  </div>
+</div>
+    <div class="post-content">
+      <p>为了保证服务能够正常提供服务，k8s提供了容器健康检查和就需检查功能，目前支持TCP、Http、和命令三种方式，
+这里将不会分析所有的流程，只会看健康检查相关的流程。
+在kubelet的<code>在syncLoopIteration</code>函数中将会根据pod的操作类型进行相关的处理。这里涉及到的操作主要有<code>Add</code>、<code>Restore</code>、<code>Remove</code>。
+在Add和Restore中，通过<code>HandlePodAdditions</code>操作，Remove通过<code>HandlePodRemoves</code>实现。接下来将详细分析<code>HandlePodAdditions</code>实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">kl</span> <span class="o">*</span><span class="nx">Kubelet</span><span class="p">)</span> <span class="nf">HandlePodAdditions</span><span class="p">(</span><span class="nx">pods</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">start</span> <span class="o">:=</span> <span class="nx">kl</span><span class="p">.</span><span class="nx">clock</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+	<span class="nx">sort</span><span class="p">.</span><span class="nf">Sort</span><span class="p">(</span><span class="nx">sliceutils</span><span class="p">.</span><span class="nf">PodsByCreationTime</span><span class="p">(</span><span class="nx">pods</span><span class="p">))</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">pods</span> <span class="p">{</span>
+		<span class="nx">existingPods</span> <span class="o">:=</span> <span class="nx">kl</span><span class="p">.</span><span class="nx">podManager</span><span class="p">.</span><span class="nf">GetPods</span><span class="p">()</span>
+		<span class="c1">// Always add the pod to the pod manager. Kubelet relies on the pod
+</span><span class="c1"></span>		<span class="c1">// manager as the source of truth for the desired state. If a pod does
+</span><span class="c1"></span>		<span class="c1">// not exist in the pod manager, it means that it has been deleted in
+</span><span class="c1"></span>		<span class="c1">// the apiserver and no action (other than cleanup) is required.
+</span><span class="c1"></span>		<span class="nx">kl</span><span class="p">.</span><span class="nx">podManager</span><span class="p">.</span><span class="nf">AddPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+
+		<span class="k">if</span> <span class="nx">kubetypes</span><span class="p">.</span><span class="nf">IsMirrorPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span> <span class="p">{</span>
+			<span class="nx">kl</span><span class="p">.</span><span class="nf">handleMirrorPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
+			<span class="k">continue</span>
+		<span class="p">}</span>
+
+		<span class="k">if</span> <span class="p">!</span><span class="nx">kl</span><span class="p">.</span><span class="nf">podIsTerminated</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span> <span class="p">{</span>
+			<span class="c1">// Only go through the admission process if the pod is not
+</span><span class="c1"></span>			<span class="c1">// terminated.
+</span><span class="c1"></span>
+			<span class="c1">// We failed pods that we rejected, so activePods include all admitted
+</span><span class="c1"></span>			<span class="c1">// pods that are alive.
+</span><span class="c1"></span>			<span class="nx">activePods</span> <span class="o">:=</span> <span class="nx">kl</span><span class="p">.</span><span class="nf">filterOutTerminatedPods</span><span class="p">(</span><span class="nx">existingPods</span><span class="p">)</span>
+
+			<span class="c1">// Check if we can admit the pod; if not, reject it.
+</span><span class="c1"></span>			<span class="k">if</span> <span class="nx">ok</span><span class="p">,</span> <span class="nx">reason</span><span class="p">,</span> <span class="nx">message</span> <span class="o">:=</span> <span class="nx">kl</span><span class="p">.</span><span class="nf">canAdmitPod</span><span class="p">(</span><span class="nx">activePods</span><span class="p">,</span> <span class="nx">pod</span><span class="p">);</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+				<span class="nx">kl</span><span class="p">.</span><span class="nf">rejectPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">reason</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+				<span class="k">continue</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+		<span class="nx">mirrorPod</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">kl</span><span class="p">.</span><span class="nx">podManager</span><span class="p">.</span><span class="nf">GetMirrorPodByPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+    <span class="c1">//这里会对pod进行分发处理，进行pod创建的真正流程，这里不会详细分析
+</span><span class="c1"></span>		<span class="nx">kl</span><span class="p">.</span><span class="nf">dispatchWork</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">kubetypes</span><span class="p">.</span><span class="nx">SyncPodCreate</span><span class="p">,</span> <span class="nx">mirrorPod</span><span class="p">,</span> <span class="nx">start</span><span class="p">)</span>
+    <span class="c1">//这个是这里的重点
+</span><span class="c1"></span>		<span class="nx">kl</span><span class="p">.</span><span class="nx">probeManager</span><span class="p">.</span><span class="nf">AddPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里重点看<code>kl.probeManager.AddPod</code>操作。关注<code>manager</code>结构，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">manager</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="c1">// Map of active workers for probes
+</span><span class="c1"></span>	<span class="nx">workers</span> <span class="kd">map</span><span class="p">[</span><span class="nx">probeKey</span><span class="p">]</span><span class="o">*</span><span class="nx">worker</span>
+	<span class="c1">// Lock for accessing &amp; mutating workers
+</span><span class="c1"></span>	<span class="nx">workerLock</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">RWMutex</span>
+
+	<span class="c1">// The statusManager cache provides pod IP and container IDs for probing.
+</span><span class="c1"></span>	<span class="nx">statusManager</span> <span class="nx">status</span><span class="p">.</span><span class="nx">Manager</span>
+
+	<span class="c1">// readinessManager manages the results of readiness probes
+</span><span class="c1"></span>	<span class="nx">readinessManager</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Manager</span>
+
+	<span class="c1">// livenessManager manages the results of liveness probes
+</span><span class="c1"></span>	<span class="nx">livenessManager</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Manager</span>
+
+	<span class="c1">// startupManager manages the results of startup probes
+</span><span class="c1"></span>	<span class="nx">startupManager</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Manager</span>
+
+	<span class="c1">// prober executes the probe actions.
+</span><span class="c1"></span>	<span class="nx">prober</span> <span class="o">*</span><span class="nx">prober</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>manager</code>在<code>NewMainKubelet</code>中进行实例化，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">klet</span><span class="p">.</span><span class="nx">probeManager</span> <span class="p">=</span> <span class="nx">prober</span><span class="p">.</span><span class="nf">NewManager</span><span class="p">(</span>
+		<span class="nx">klet</span><span class="p">.</span><span class="nx">statusManager</span><span class="p">,</span>
+		<span class="nx">klet</span><span class="p">.</span><span class="nx">livenessManager</span><span class="p">,</span>
+		<span class="nx">klet</span><span class="p">.</span><span class="nx">startupManager</span><span class="p">,</span>
+		<span class="nx">klet</span><span class="p">.</span><span class="nx">runner</span><span class="p">,</span>
+		<span class="nx">containerRefManager</span><span class="p">,</span>
+		<span class="nx">kubeDeps</span><span class="p">.</span><span class="nx">Recorder</span><span class="p">)</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>其中readinessManager,livenessManager,startupManager都是用来存储检查结果的。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// NewManager creates and returns an empty results manager.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">NewManager</span><span class="p">()</span> <span class="nx">Manager</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="o">&amp;</span><span class="nx">manager</span><span class="p">{</span>
+      <span class="nx">cache</span><span class="p">:</span>   <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">ContainerID</span><span class="p">]</span><span class="nx">Result</span><span class="p">),</span>
+      <span class="nx">updates</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">Update</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>statusManager</code>是容器状态管理控制器，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// NewManager returns a functional Manager.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">NewManager</span><span class="p">(</span><span class="nx">kubeClient</span> <span class="nx">clientset</span><span class="p">.</span><span class="nx">Interface</span><span class="p">,</span> <span class="nx">podManager</span> <span class="nx">kubepod</span><span class="p">.</span><span class="nx">Manager</span><span class="p">,</span> <span class="nx">podDeletionSafety</span> <span class="nx">PodDeletionSafetyProvider</span><span class="p">)</span> <span class="nx">Manager</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">manager</span><span class="p">{</span>
+		<span class="nx">kubeClient</span><span class="p">:</span>        <span class="nx">kubeClient</span><span class="p">,</span>
+		<span class="nx">podManager</span><span class="p">:</span>        <span class="nx">podManager</span><span class="p">,</span>
+		<span class="nx">podStatuses</span><span class="p">:</span>       <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">types</span><span class="p">.</span><span class="nx">UID</span><span class="p">]</span><span class="nx">versionedPodStatus</span><span class="p">),</span>
+		<span class="nx">podStatusChannel</span><span class="p">:</span>  <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="nx">podStatusSyncRequest</span><span class="p">,</span> <span class="mi">1000</span><span class="p">),</span> <span class="c1">// Buffer up to 1000 statuses
+</span><span class="c1"></span>		<span class="nx">apiStatusVersions</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="nx">kubetypes</span><span class="p">.</span><span class="nx">MirrorPodUID</span><span class="p">]</span><span class="kt">uint64</span><span class="p">),</span>
+		<span class="nx">podDeletionSafety</span><span class="p">:</span> <span class="nx">podDeletionSafety</span><span class="p">,</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><code>prober</code>结构则是通过，kubelet中的<code>runtime</code>，<code>containerRefManager</code>，<code>Recoder</code>实现的。
+<code>probeManager</code>的启动是在start。这个到后面再分析，先看probe实现。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">//kubernetes/pkg/kubelet/prober/probe_manager.go
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">manager</span><span class="p">)</span> <span class="nf">Start</span><span class="p">()</span> <span class="p">{</span>
+	<span class="c1">// Start syncing readiness.
+</span><span class="c1"></span>	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Forever</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">updateReadiness</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="c1">// Start syncing startup.
+</span><span class="c1"></span>	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Forever</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">updateStartup</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>接着分析<code>kl.probeManager.AddPod</code>，在这里会分别为pod中的每个container都创建<code>worker</code>，然后再worker中进行状态检测。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">manager</span><span class="p">)</span> <span class="nf">AddPod</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">m</span><span class="p">.</span><span class="nx">workerLock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">m</span><span class="p">.</span><span class="nx">workerLock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+
+	<span class="nx">key</span> <span class="o">:=</span> <span class="nx">probeKey</span><span class="p">{</span><span class="nx">podUID</span><span class="p">:</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">UID</span><span class="p">}</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">c</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">Containers</span> <span class="p">{</span>
+		<span class="nx">key</span><span class="p">.</span><span class="nx">containerName</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">Name</span>
+
+		<span class="k">if</span> <span class="nx">c</span><span class="p">.</span><span class="nx">StartupProbe</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">utilfeature</span><span class="p">.</span><span class="nx">DefaultFeatureGate</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">features</span><span class="p">.</span><span class="nx">StartupProbe</span><span class="p">)</span> <span class="p">{</span>
+			<span class="nx">key</span><span class="p">.</span><span class="nx">probeType</span> <span class="p">=</span> <span class="nx">startup</span>
+			<span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Startup probe already exists! %v - %v&#34;</span><span class="p">,</span>
+					<span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">c</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="nx">w</span> <span class="o">:=</span> <span class="nf">newWorker</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">startup</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
+			<span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">w</span>
+			<span class="k">go</span> <span class="nx">w</span><span class="p">.</span><span class="nf">run</span><span class="p">()</span>
+		<span class="p">}</span>
+
+		<span class="k">if</span> <span class="nx">c</span><span class="p">.</span><span class="nx">ReadinessProbe</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">key</span><span class="p">.</span><span class="nx">probeType</span> <span class="p">=</span> <span class="nx">readiness</span>
+			<span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Readiness probe already exists! %v - %v&#34;</span><span class="p">,</span>
+					<span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">c</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="nx">w</span> <span class="o">:=</span> <span class="nf">newWorker</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">readiness</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
+			<span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">w</span>
+			<span class="k">go</span> <span class="nx">w</span><span class="p">.</span><span class="nf">run</span><span class="p">()</span>
+		<span class="p">}</span>
+
+		<span class="k">if</span> <span class="nx">c</span><span class="p">.</span><span class="nx">LivenessProbe</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">key</span><span class="p">.</span><span class="nx">probeType</span> <span class="p">=</span> <span class="nx">liveness</span>
+			<span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Liveness probe already exists! %v - %v&#34;</span><span class="p">,</span>
+					<span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">c</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="nx">w</span> <span class="o">:=</span> <span class="nf">newWorker</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">liveness</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
+			<span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">w</span>
+			<span class="k">go</span> <span class="nx">w</span><span class="p">.</span><span class="nf">run</span><span class="p">()</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在Add中主要包括这几个步骤。1. 轮询pod中的每个容器；2. 根据每个容器的<code>startupProbe</code>，<code>ReadinessProbe</code>，<code>LivenessProbe</code>三种检查的配置情况创建对应的worker；3. 执行检测<code>w.run()</code>。</p>
+<p>看其中一种检查类型的配置。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go">    <span class="k">if</span> <span class="nx">c</span><span class="p">.</span><span class="nx">StartupProbe</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="nx">utilfeature</span><span class="p">.</span><span class="nx">DefaultFeatureGate</span><span class="p">.</span><span class="nf">Enabled</span><span class="p">(</span><span class="nx">features</span><span class="p">.</span><span class="nx">StartupProbe</span><span class="p">)</span> <span class="p">{</span>
+			<span class="nx">key</span><span class="p">.</span><span class="nx">probeType</span> <span class="p">=</span> <span class="nx">startup</span>
+			<span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Startup probe already exists! %v - %v&#34;</span><span class="p">,</span>
+					<span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">c</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="nx">w</span> <span class="o">:=</span> <span class="nf">newWorker</span><span class="p">(</span><span class="nx">m</span><span class="p">,</span> <span class="nx">startup</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
+			<span class="nx">m</span><span class="p">.</span><span class="nx">workers</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">w</span>
+			<span class="k">go</span> <span class="nx">w</span><span class="p">.</span><span class="nf">run</span><span class="p">()</span>
+		<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>针对<code>Startup</code>类型的检测会多一个features.StartupProbe的开关，其他两种则没有。先根据检测类型，存储到workers的key。如果这个pod的这个container已经存在，则会直接返回，否则会为这个container创建一个<code>worker</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">worker</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="c1">// Channel for stopping the probe.
+</span><span class="c1"></span>	<span class="nx">stopCh</span> <span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span>
+
+	<span class="c1">// The pod containing this probe (read-only)
+</span><span class="c1"></span>	<span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span>
+
+	<span class="c1">// The container to probe (read-only)
+</span><span class="c1"></span>	<span class="nx">container</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">Container</span>
+
+	<span class="c1">// Describes the probe configuration (read-only)
+</span><span class="c1"></span>	<span class="nx">spec</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Probe</span>
+
+	<span class="c1">// The type of the worker.
+</span><span class="c1"></span>	<span class="nx">probeType</span> <span class="nx">probeType</span>
+
+	<span class="c1">// The probe value during the initial delay.
+</span><span class="c1"></span>	<span class="nx">initialValue</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Result</span>
+
+	<span class="c1">// Where to store this workers results.
+</span><span class="c1"></span>	<span class="nx">resultsManager</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Manager</span>
+	<span class="nx">probeManager</span>   <span class="o">*</span><span class="nx">manager</span>
+
+	<span class="c1">// The last known container ID for this worker.
+</span><span class="c1"></span>	<span class="nx">containerID</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">ContainerID</span>
+	<span class="c1">// The last probe result for this worker.
+</span><span class="c1"></span>	<span class="nx">lastResult</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Result</span>
+	<span class="c1">// How many times in a row the probe has returned the same result.
+</span><span class="c1"></span>	<span class="nx">resultRun</span> <span class="kt">int</span>
+
+	<span class="c1">// If set, skip probing.
+</span><span class="c1"></span>	<span class="nx">onHold</span> <span class="kt">bool</span>
+
+	<span class="c1">// proberResultsMetricLabels holds the labels attached to this worker
+</span><span class="c1"></span>	<span class="c1">// for the ProberResults metric by result.
+</span><span class="c1"></span>	<span class="nx">proberResultsSuccessfulMetricLabels</span> <span class="nx">metrics</span><span class="p">.</span><span class="nx">Labels</span>
+	<span class="nx">proberResultsFailedMetricLabels</span>     <span class="nx">metrics</span><span class="p">.</span><span class="nx">Labels</span>
+	<span class="nx">proberResultsUnknownMetricLabels</span>    <span class="nx">metrics</span><span class="p">.</span><span class="nx">Labels</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后再执行到 <code>w.run()</code>,<code>doProbe()</code>,在<code>doProbe()</code>中主要完成了以下步骤。</p>
+<ol>
+<li>获取pod的status；</li>
+<li>如果pod已经是<code>v1.PodFailed</code>或者<code>v1.PodSuccesseeded</code>两种状态，则停止检测；</li>
+<li>从pod status中获取对应的容器状态，然后根据容器状态做相应的处理，如果容器id和获取的不一样，容器状态不是<code>running</code>，再做相关处理，然后返回，如果是<code>startup</code>类型的检测，并且容器已经启动则返回不再检测；</li>
+<li>执行检测<code>w.probeManager.prober.probe</code>；</li>
+<li>根据执行结果设置对应的<code>resultsManager</code>。
+这里具体分析一下检测过程。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">pb</span> <span class="o">*</span><span class="nx">prober</span><span class="p">)</span> <span class="nf">probe</span><span class="p">(</span><span class="nx">probeType</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">status</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">PodStatus</span><span class="p">,</span> <span class="nx">container</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">Container</span><span class="p">,</span> <span class="nx">containerID</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">ContainerID</span><span class="p">)</span> <span class="p">(</span><span class="nx">results</span><span class="p">.</span><span class="nx">Result</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">probeSpec</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Probe</span>
+	<span class="k">switch</span> <span class="nx">probeType</span> <span class="p">{</span>
+	<span class="k">case</span> <span class="nx">readiness</span><span class="p">:</span>
+		<span class="nx">probeSpec</span> <span class="p">=</span> <span class="nx">container</span><span class="p">.</span><span class="nx">ReadinessProbe</span>
+	<span class="k">case</span> <span class="nx">liveness</span><span class="p">:</span>
+		<span class="nx">probeSpec</span> <span class="p">=</span> <span class="nx">container</span><span class="p">.</span><span class="nx">LivenessProbe</span>
+	<span class="k">case</span> <span class="nx">startup</span><span class="p">:</span>
+		<span class="nx">probeSpec</span> <span class="p">=</span> <span class="nx">container</span><span class="p">.</span><span class="nx">StartupProbe</span>
+	<span class="k">default</span><span class="p">:</span>
+		<span class="k">return</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Failure</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;unknown probe type: %q&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="nx">ctrName</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%s:%s&#34;</span><span class="p">,</span> <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">container</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">probeSpec</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;%s probe for %s is nil&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">ctrName</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Success</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="nx">result</span><span class="p">,</span> <span class="nx">output</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">pb</span><span class="p">.</span><span class="nf">runProbeWithRetries</span><span class="p">(</span><span class="nx">probeType</span><span class="p">,</span> <span class="nx">probeSpec</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">status</span><span class="p">,</span> <span class="nx">container</span><span class="p">,</span> <span class="nx">containerID</span><span class="p">,</span> <span class="nx">maxProbeRetries</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="p">(</span><span class="nx">result</span> <span class="o">!=</span> <span class="nx">probe</span><span class="p">.</span><span class="nx">Success</span> <span class="o">&amp;&amp;</span> <span class="nx">result</span> <span class="o">!=</span> <span class="nx">probe</span><span class="p">.</span><span class="nx">Warning</span><span class="p">)</span> <span class="p">{</span>
+		<span class="c1">// Probe failed in one way or another.
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">1</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%s probe for %q errored: %v&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">ctrName</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="nx">pb</span><span class="p">.</span><span class="nf">recordContainerEvent</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">container</span><span class="p">,</span> <span class="nx">containerID</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">EventTypeWarning</span><span class="p">,</span> <span class="nx">events</span><span class="p">.</span><span class="nx">ContainerUnhealthy</span><span class="p">,</span> <span class="s">&#34;%s probe errored: %v&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span> <span class="c1">// result != probe.Success
+</span><span class="c1"></span>			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">1</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%s probe for %q failed (%v): %s&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">ctrName</span><span class="p">,</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">output</span><span class="p">)</span>
+			<span class="nx">pb</span><span class="p">.</span><span class="nf">recordContainerEvent</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">container</span><span class="p">,</span> <span class="nx">containerID</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">EventTypeWarning</span><span class="p">,</span> <span class="nx">events</span><span class="p">.</span><span class="nx">ContainerUnhealthy</span><span class="p">,</span> <span class="s">&#34;%s probe failed: %v&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">output</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Failure</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">result</span> <span class="o">==</span> <span class="nx">probe</span><span class="p">.</span><span class="nx">Warning</span> <span class="p">{</span>
+		<span class="nx">pb</span><span class="p">.</span><span class="nf">recordContainerEvent</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">container</span><span class="p">,</span> <span class="nx">containerID</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">EventTypeWarning</span><span class="p">,</span> <span class="nx">events</span><span class="p">.</span><span class="nx">ContainerProbeWarning</span><span class="p">,</span> <span class="s">&#34;%s probe warning: %v&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">output</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%s probe for %q succeeded with a warning: %s&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">ctrName</span><span class="p">,</span> <span class="nx">output</span><span class="p">)</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%s probe for %q succeeded&#34;</span><span class="p">,</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">ctrName</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Success</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在上面将通过<code>pb.runProbeWithRetries</code>再进行检测，之后执行<code>runProbe</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">pb</span> <span class="o">*</span><span class="nx">prober</span><span class="p">)</span> <span class="nf">runProbe</span><span class="p">(</span><span class="nx">probeType</span> <span class="nx">probeType</span><span class="p">,</span> <span class="nx">p</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Probe</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">status</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">PodStatus</span><span class="p">,</span> <span class="nx">container</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">Container</span><span class="p">,</span> <span class="nx">containerID</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">ContainerID</span><span class="p">)</span> <span class="p">(</span><span class="nx">probe</span><span class="p">.</span><span class="nx">Result</span><span class="p">,</span> <span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">timeout</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">TimeoutSeconds</span><span class="p">)</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span>
+	<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">Exec</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Exec-Probe Pod: %v, Container: %v, Command: %v&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">container</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">Exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">)</span>
+		<span class="nx">command</span> <span class="o">:=</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nf">ExpandContainerCommandOnlyStatic</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">Exec</span><span class="p">.</span><span class="nx">Command</span><span class="p">,</span> <span class="nx">container</span><span class="p">.</span><span class="nx">Env</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nx">pb</span><span class="p">.</span><span class="nx">exec</span><span class="p">.</span><span class="nf">Probe</span><span class="p">(</span><span class="nx">pb</span><span class="p">.</span><span class="nf">newExecInContainer</span><span class="p">(</span><span class="nx">container</span><span class="p">,</span> <span class="nx">containerID</span><span class="p">,</span> <span class="nx">command</span><span class="p">,</span> <span class="nx">timeout</span><span class="p">))</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">HTTPGet</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">scheme</span> <span class="o">:=</span> <span class="nx">strings</span><span class="p">.</span><span class="nf">ToLower</span><span class="p">(</span><span class="nb">string</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">HTTPGet</span><span class="p">.</span><span class="nx">Scheme</span><span class="p">))</span>
+		<span class="nx">host</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">HTTPGet</span><span class="p">.</span><span class="nx">Host</span>
+		<span class="k">if</span> <span class="nx">host</span> <span class="o">==</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+			<span class="nx">host</span> <span class="p">=</span> <span class="nx">status</span><span class="p">.</span><span class="nx">PodIP</span>
+		<span class="p">}</span>
+		<span class="nx">port</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">extractPort</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">HTTPGet</span><span class="p">.</span><span class="nx">Port</span><span class="p">,</span> <span class="nx">container</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">probe</span><span class="p">.</span><span class="nx">Unknown</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="nx">path</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">HTTPGet</span><span class="p">.</span><span class="nx">Path</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;HTTP-Probe Host: %v://%v, Port: %v, Path: %v&#34;</span><span class="p">,</span> <span class="nx">scheme</span><span class="p">,</span> <span class="nx">host</span><span class="p">,</span> <span class="nx">port</span><span class="p">,</span> <span class="nx">path</span><span class="p">)</span>
+		<span class="nx">url</span> <span class="o">:=</span> <span class="nf">formatURL</span><span class="p">(</span><span class="nx">scheme</span><span class="p">,</span> <span class="nx">host</span><span class="p">,</span> <span class="nx">port</span><span class="p">,</span> <span class="nx">path</span><span class="p">)</span>
+		<span class="nx">headers</span> <span class="o">:=</span> <span class="nf">buildHeader</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">HTTPGet</span><span class="p">.</span><span class="nx">HTTPHeaders</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;HTTP-Probe Headers: %v&#34;</span><span class="p">,</span> <span class="nx">headers</span><span class="p">)</span>
+		<span class="k">switch</span> <span class="nx">probeType</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="nx">liveness</span><span class="p">:</span>
+			<span class="k">return</span> <span class="nx">pb</span><span class="p">.</span><span class="nx">livenessHTTP</span><span class="p">.</span><span class="nf">Probe</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span> <span class="nx">headers</span><span class="p">,</span> <span class="nx">timeout</span><span class="p">)</span>
+		<span class="k">case</span> <span class="nx">startup</span><span class="p">:</span>
+			<span class="k">return</span> <span class="nx">pb</span><span class="p">.</span><span class="nx">startupHTTP</span><span class="p">.</span><span class="nf">Probe</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span> <span class="nx">headers</span><span class="p">,</span> <span class="nx">timeout</span><span class="p">)</span>
+		<span class="k">default</span><span class="p">:</span>
+			<span class="k">return</span> <span class="nx">pb</span><span class="p">.</span><span class="nx">readinessHTTP</span><span class="p">.</span><span class="nf">Probe</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span> <span class="nx">headers</span><span class="p">,</span> <span class="nx">timeout</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">TCPSocket</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">port</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">extractPort</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">TCPSocket</span><span class="p">.</span><span class="nx">Port</span><span class="p">,</span> <span class="nx">container</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="nx">probe</span><span class="p">.</span><span class="nx">Unknown</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="nx">host</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">TCPSocket</span><span class="p">.</span><span class="nx">Host</span>
+		<span class="k">if</span> <span class="nx">host</span> <span class="o">==</span> <span class="s">&#34;&#34;</span> <span class="p">{</span>
+			<span class="nx">host</span> <span class="p">=</span> <span class="nx">status</span><span class="p">.</span><span class="nx">PodIP</span>
+		<span class="p">}</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;TCP-Probe Host: %v, Port: %v, Timeout: %v&#34;</span><span class="p">,</span> <span class="nx">host</span><span class="p">,</span> <span class="nx">port</span><span class="p">,</span> <span class="nx">timeout</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nx">pb</span><span class="p">.</span><span class="nx">tcp</span><span class="p">.</span><span class="nf">Probe</span><span class="p">(</span><span class="nx">host</span><span class="p">,</span> <span class="nx">port</span><span class="p">,</span> <span class="nx">timeout</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;Failed to find probe builder for container: %v&#34;</span><span class="p">,</span> <span class="nx">container</span><span class="p">)</span>
+	<span class="k">return</span> <span class="nx">probe</span><span class="p">.</span><span class="nx">Unknown</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;missing probe handler for %s:%s&#34;</span><span class="p">,</span> <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">container</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>runProbe</code>中将根据检测类型进行具体的检测命令检测，httpGet,TCP检测。根据检测结果在<code>doProbe</code>函数中会记录相邻几次检测的结果。
+这里会先从缓存中获取之前的记录，如果结果不一样会触发更新。然后在将结果组合成<code>Update{id,result,pod.UID}</code>的方式放入到<code>resultsManager</code>的update channel。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">manager</span><span class="p">)</span> <span class="nf">setInternal</span><span class="p">(</span><span class="nx">id</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">ContainerID</span><span class="p">,</span> <span class="nx">result</span> <span class="nx">Result</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+	<span class="nx">m</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">m</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="nx">prev</span><span class="p">,</span> <span class="nx">exists</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">exists</span> <span class="o">||</span> <span class="nx">prev</span> <span class="o">!=</span> <span class="nx">result</span> <span class="p">{</span>
+		<span class="nx">m</span><span class="p">.</span><span class="nx">cache</span><span class="p">[</span><span class="nx">id</span><span class="p">]</span> <span class="p">=</span> <span class="nx">result</span>
+		<span class="k">return</span> <span class="kc">true</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="kc">false</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>从channel中消费结果则在前面刚开始提到的probe_manager的start()。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">//kubernetes/pkg/kubelet/prober/probe_manager.go
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">manager</span><span class="p">)</span> <span class="nf">Start</span><span class="p">()</span> <span class="p">{</span>
+	<span class="c1">// Start syncing readiness.
+</span><span class="c1"></span>	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Forever</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">updateReadiness</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="c1">// Start syncing startup.
+</span><span class="c1"></span>	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Forever</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">updateStartup</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>我们分析其中一个<code>Readiness</code>的update操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">manager</span><span class="p">)</span> <span class="nf">updateReadiness</span><span class="p">()</span> <span class="p">{</span>
+	<span class="nx">update</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">m</span><span class="p">.</span><span class="nx">readinessManager</span><span class="p">.</span><span class="nf">Updates</span><span class="p">()</span>
+
+	<span class="nx">ready</span> <span class="o">:=</span> <span class="nx">update</span><span class="p">.</span><span class="nx">Result</span> <span class="o">==</span> <span class="nx">results</span><span class="p">.</span><span class="nx">Success</span>
+	<span class="nx">m</span><span class="p">.</span><span class="nx">statusManager</span><span class="p">.</span><span class="nf">SetContainerReadiness</span><span class="p">(</span><span class="nx">update</span><span class="p">.</span><span class="nx">PodUID</span><span class="p">,</span> <span class="nx">update</span><span class="p">.</span><span class="nx">ContainerID</span><span class="p">,</span> <span class="nx">ready</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">manager</span><span class="p">)</span> <span class="nf">SetContainerReadiness</span><span class="p">(</span><span class="nx">podUID</span> <span class="nx">types</span><span class="p">.</span><span class="nx">UID</span><span class="p">,</span> <span class="nx">containerID</span> <span class="nx">kubecontainer</span><span class="p">.</span><span class="nx">ContainerID</span><span class="p">,</span> <span class="nx">ready</span> <span class="kt">bool</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">m</span><span class="p">.</span><span class="nx">podStatusesLock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">m</span><span class="p">.</span><span class="nx">podStatusesLock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+
+	<span class="nx">pod</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">podManager</span><span class="p">.</span><span class="nf">GetPodByUID</span><span class="p">(</span><span class="nx">podUID</span><span class="p">)</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Pod %q has been deleted, no need to update readiness&#34;</span><span class="p">,</span> <span class="nb">string</span><span class="p">(</span><span class="nx">podUID</span><span class="p">))</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+
+	<span class="nx">oldStatus</span><span class="p">,</span> <span class="nx">found</span> <span class="o">:=</span> <span class="nx">m</span><span class="p">.</span><span class="nx">podStatuses</span><span class="p">[</span><span class="nx">pod</span><span class="p">.</span><span class="nx">UID</span><span class="p">]</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">found</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;Container readiness changed before pod has synced: %q - %q&#34;</span><span class="p">,</span>
+			<span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">containerID</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Find the container to update.
+</span><span class="c1"></span>	<span class="nx">containerStatus</span><span class="p">,</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nf">findContainerStatus</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">oldStatus</span><span class="p">.</span><span class="nx">status</span><span class="p">,</span> <span class="nx">containerID</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;Container readiness changed for unknown container: %q - %q&#34;</span><span class="p">,</span>
+			<span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">containerID</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+
+	<span class="k">if</span> <span class="nx">containerStatus</span><span class="p">.</span><span class="nx">Ready</span> <span class="o">==</span> <span class="nx">ready</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Container readiness unchanged (%v): %q - %q&#34;</span><span class="p">,</span> <span class="nx">ready</span><span class="p">,</span>
+			<span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">containerID</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Make sure we&#39;re not updating the cached version.
+</span><span class="c1"></span>	<span class="nx">status</span> <span class="o">:=</span> <span class="o">*</span><span class="nx">oldStatus</span><span class="p">.</span><span class="nx">status</span><span class="p">.</span><span class="nf">DeepCopy</span><span class="p">()</span>
+	<span class="nx">containerStatus</span><span class="p">,</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">_</span> <span class="p">=</span> <span class="nf">findContainerStatus</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">status</span><span class="p">,</span> <span class="nx">containerID</span><span class="p">.</span><span class="nf">String</span><span class="p">())</span>
+	<span class="nx">containerStatus</span><span class="p">.</span><span class="nx">Ready</span> <span class="p">=</span> <span class="nx">ready</span>
+
+	<span class="c1">// updateConditionFunc updates the corresponding type of condition
+</span><span class="c1"></span>	<span class="nx">updateConditionFunc</span> <span class="o">:=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">conditionType</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">PodConditionType</span><span class="p">,</span> <span class="nx">condition</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">PodCondition</span><span class="p">)</span> <span class="p">{</span>
+		<span class="nx">conditionIndex</span> <span class="o">:=</span> <span class="o">-</span><span class="mi">1</span>
+		<span class="k">for</span> <span class="nx">i</span><span class="p">,</span> <span class="nx">condition</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">status</span><span class="p">.</span><span class="nx">Conditions</span> <span class="p">{</span>
+			<span class="k">if</span> <span class="nx">condition</span><span class="p">.</span><span class="nx">Type</span> <span class="o">==</span> <span class="nx">conditionType</span> <span class="p">{</span>
+				<span class="nx">conditionIndex</span> <span class="p">=</span> <span class="nx">i</span>
+				<span class="k">break</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="nx">conditionIndex</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span> <span class="p">{</span>
+			<span class="nx">status</span><span class="p">.</span><span class="nx">Conditions</span><span class="p">[</span><span class="nx">conditionIndex</span><span class="p">]</span> <span class="p">=</span> <span class="nx">condition</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;PodStatus missing %s type condition: %+v&#34;</span><span class="p">,</span> <span class="nx">conditionType</span><span class="p">,</span> <span class="nx">status</span><span class="p">)</span>
+			<span class="nx">status</span><span class="p">.</span><span class="nx">Conditions</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">status</span><span class="p">.</span><span class="nx">Conditions</span><span class="p">,</span> <span class="nx">condition</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="nf">updateConditionFunc</span><span class="p">(</span><span class="nx">v1</span><span class="p">.</span><span class="nx">PodReady</span><span class="p">,</span> <span class="nf">GeneratePodReadyCondition</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Spec</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nx">Conditions</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nx">ContainerStatuses</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nx">Phase</span><span class="p">))</span>
+	<span class="nf">updateConditionFunc</span><span class="p">(</span><span class="nx">v1</span><span class="p">.</span><span class="nx">ContainersReady</span><span class="p">,</span> <span class="nf">GenerateContainersReadyCondition</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Spec</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nx">ContainerStatuses</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nx">Phase</span><span class="p">))</span>
+	<span class="nx">m</span><span class="p">.</span><span class="nf">updateStatusInternal</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">status</span><span class="p">,</span> <span class="kc">false</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>接下来分析状态更新部分。通过<code>GeneratePodReadyCondition</code>和<code>GenerateContainersReadyCondition</code>两个函数计算pod和container的ReadyCondition状态，然后通过<code>m.updateStatusInternal</code>更新状态。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="k">select</span> <span class="p">{</span>
+<span class="k">case</span> <span class="nx">m</span><span class="p">.</span><span class="nx">podStatusChannel</span> <span class="o">&lt;-</span> <span class="nx">podStatusSyncRequest</span><span class="p">{</span><span class="nx">pod</span><span class="p">.</span><span class="nx">UID</span><span class="p">,</span> <span class="nx">newStatus</span><span class="p">}:</span>
+  <span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Status Manager: adding pod: %q, with status: (%d, %v) to podStatusChannel&#34;</span><span class="p">,</span>
+    <span class="nx">pod</span><span class="p">.</span><span class="nx">UID</span><span class="p">,</span> <span class="nx">newStatus</span><span class="p">.</span><span class="nx">version</span><span class="p">,</span> <span class="nx">newStatus</span><span class="p">.</span><span class="nx">status</span><span class="p">)</span>
+  <span class="k">return</span> <span class="kc">true</span>
+<span class="k">default</span><span class="p">:</span>
+  <span class="c1">// Let the periodic syncBatch handle the update if the channel is full.
+</span><span class="c1"></span>  <span class="c1">// We can&#39;t block, since we hold the mutex lock.
+</span><span class="c1"></span>  <span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Skipping the status update for pod %q for now because the channel is full; status: %+v&#34;</span><span class="p">,</span>
+    <span class="nx">format</span><span class="p">.</span><span class="nf">Pod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">status</span><span class="p">)</span>
+  <span class="k">return</span> <span class="kc">false</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里会将更新发送到<code>statusManager</code>的<code>podStatusChannel</code>中，然后kubelet的statusManager在启动的时候会一直处理这里面的事件。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">m</span> <span class="o">*</span><span class="nx">manager</span><span class="p">)</span> <span class="nf">Start</span><span class="p">()</span> <span class="p">{</span>
+	<span class="c1">// Don&#39;t start the status manager if we don&#39;t have a client. This will happen
+</span><span class="c1"></span>	<span class="c1">// on the master, where the kubelet is responsible for bootstrapping the pods
+</span><span class="c1"></span>	<span class="c1">// of the master components.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">m</span><span class="p">.</span><span class="nx">kubeClient</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Kubernetes client is nil, not starting status manager.&#34;</span><span class="p">)</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">Info</span><span class="p">(</span><span class="s">&#34;Starting to sync pod status with apiserver&#34;</span><span class="p">)</span>
+	<span class="c1">//lint:ignore SA1015 Ticker can link since this is only called once and doesn&#39;t handle termination.
+</span><span class="c1"></span>	<span class="nx">syncTicker</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Tick</span><span class="p">(</span><span class="nx">syncPeriod</span><span class="p">)</span>
+	<span class="c1">// syncPod and syncBatch share the same go routine to avoid sync races.
+</span><span class="c1"></span>	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Forever</span><span class="p">(</span><span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">for</span> <span class="p">{</span>
+			<span class="k">select</span> <span class="p">{</span>
+			<span class="k">case</span> <span class="nx">syncRequest</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">m</span><span class="p">.</span><span class="nx">podStatusChannel</span><span class="p">:</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Status Manager: syncing pod: %q, with status: (%d, %v) from podStatusChannel&#34;</span><span class="p">,</span>
+					<span class="nx">syncRequest</span><span class="p">.</span><span class="nx">podUID</span><span class="p">,</span> <span class="nx">syncRequest</span><span class="p">.</span><span class="nx">status</span><span class="p">.</span><span class="nx">version</span><span class="p">,</span> <span class="nx">syncRequest</span><span class="p">.</span><span class="nx">status</span><span class="p">.</span><span class="nx">status</span><span class="p">)</span>
+				<span class="nx">m</span><span class="p">.</span><span class="nf">syncPod</span><span class="p">(</span><span class="nx">syncRequest</span><span class="p">.</span><span class="nx">podUID</span><span class="p">,</span> <span class="nx">syncRequest</span><span class="p">.</span><span class="nx">status</span><span class="p">)</span>
+			<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">syncTicker</span><span class="p">:</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Status Manager: syncing batch&#34;</span><span class="p">)</span>
+				<span class="c1">// remove any entries in the status channel since the batch will handle them
+</span><span class="c1"></span>				<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="nb">len</span><span class="p">(</span><span class="nx">m</span><span class="p">.</span><span class="nx">podStatusChannel</span><span class="p">);</span> <span class="nx">i</span> <span class="p">&gt;</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span><span class="o">--</span> <span class="p">{</span>
+					<span class="o">&lt;-</span><span class="nx">m</span><span class="p">.</span><span class="nx">podStatusChannel</span>
+				<span class="p">}</span>
+				<span class="nx">m</span><span class="p">.</span><span class="nf">syncBatch</span><span class="p">()</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">},</span> <span class="mi">0</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里是statusManager处理状态更新事件。通过调用<code>syncPod</code>从etcd中获取现在的pod，然后通过<code>statusutil.PatchPodStatus</code>来patch新的状态。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-06-01 15:31
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/kubelet/">kubelet</a>
+          <a href="/tags/liveness/">liveness</a>
+          <a href="/tags/readiness/">readiness</a>
+          </div>
+      <nav class="post-nav">
+        <a class="prev" href="/post/inplaceupdate/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">[Kubernetes] pod原地升级</span>
+            <span class="prev-text nav-mobile">上一篇</span>
+          </a>
+        <a class="next" href="/post/endpointcontroller%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/">
+            <span class="next-text nav-default">[Kubernetes] EndpointController源码分析</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="756495135@qq.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  <div class="busuanzi-footer">
+    <span id="busuanzi_container_site_pv"> 本站总访问量 <span id="busuanzi_value_site_pv"><img src="/img/spinner.svg" alt="spinner.svg"/></span> 次 </span>
+      <span class="division">|</span>
+    <span id="busuanzi_container_site_uv"> 本站总访客数 <span id="busuanzi_value_site_uv"><img src="/img/spinner.svg" alt="spinner.svg"/></span> 人 </span>
+  </div>
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
