@@ -21,7 +21,7 @@
     </item>
     
     <item>
-      <title>[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</title>
+      <title>[Kubernetes] kubelet探活机制及状态管理</title>
       <link>https://zwForrest.github.io/post/kubelet%E6%8E%A2%E6%B4%BB%E6%9C%BA%E5%88%B6%E5%92%8C%E7%8A%B6%E6%80%81%E7%AE%A1%E7%90%86/</link>
       <pubDate>Mon, 01 Jun 2020 15:31:56 +0800</pubDate>
       
