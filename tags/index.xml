@@ -6,10 +6,37 @@
     <description>Recent content in Tags on Welcome to zForrest</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-CN</language>
-    <lastBuildDate>Tue, 18 Aug 2020 18:33:56 +0800</lastBuildDate>
+    <lastBuildDate>Mon, 05 Oct 2020 18:03:56 +0800</lastBuildDate>
     
 	<atom:link href="https://zwForrest.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>kube-scheduler</title>
+      <link>https://zwForrest.github.io/tags/kube-scheduler/</link>
+      <pubDate>Mon, 05 Oct 2020 18:03:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kube-scheduler/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kubernetes</title>
+      <link>https://zwForrest.github.io/tags/kubernetes/</link>
+      <pubDate>Mon, 05 Oct 2020 18:03:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kubernetes/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Preempt</title>
+      <link>https://zwForrest.github.io/tags/preempt/</link>
+      <pubDate>Mon, 05 Oct 2020 18:03:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/preempt/</guid>
+      <description></description>
+    </item>
     
     <item>
       <title>etcd</title>
@@ -26,15 +53,6 @@
       <pubDate>Tue, 18 Aug 2020 18:33:56 +0800</pubDate>
       
       <guid>https://zwForrest.github.io/tags/kube-apiserver/</guid>
-      <description></description>
-    </item>
-    
-    <item>
-      <title>kubernetes</title>
-      <link>https://zwForrest.github.io/tags/kubernetes/</link>
-      <pubDate>Tue, 18 Aug 2020 18:33:56 +0800</pubDate>
-      
-      <guid>https://zwForrest.github.io/tags/kubernetes/</guid>
       <description></description>
     </item>
     

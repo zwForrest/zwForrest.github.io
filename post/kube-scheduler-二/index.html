@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] kube-scheduler源码分析(二) - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="上篇介绍了调度的PreFilter,Filter,PreScore,Score部分，本文将介绍Preempt部分。 在调度过程中没有合适的节点" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/kube-scheduler-%E4%BA%8C/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] kube-scheduler源码分析(二)" />
+<meta property="og:description" content="上篇介绍了调度的PreFilter,Filter,PreScore,Score部分，本文将介绍Preempt部分。 在调度过程中没有合适的节点" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/kube-scheduler-%E4%BA%8C/" />
+<meta property="article:published_time" content="2020-10-05T18:03:56+08:00" />
+<meta property="article:modified_time" content="2020-10-05T18:03:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] kube-scheduler源码分析(二)">
+<meta itemprop="description" content="上篇介绍了调度的PreFilter,Filter,PreScore,Score部分，本文将介绍Preempt部分。 在调度过程中没有合适的节点">
+<meta itemprop="datePublished" content="2020-10-05T18:03:56+08:00" />
+<meta itemprop="dateModified" content="2020-10-05T18:03:56+08:00" />
+<meta itemprop="wordCount" content="2593">
+
+
+
+<meta itemprop="keywords" content="kubernetes,kube-scheduler,Preempt," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] kube-scheduler源码分析(二)"/>
+<meta name="twitter:description" content="上篇介绍了调度的PreFilter,Filter,PreScore,Score部分，本文将介绍Preempt部分。 在调度过程中没有合适的节点"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] kube-scheduler源码分析(二)</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-10-05 18:03 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 2593 字 </span>
+          <span class="more-meta"> 预计阅读 6 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents"></nav>
+  </div>
+</div>
+    <div class="post-content">
+      <p>上篇介绍了调度的<code>PreFilter</code>,<code>Filter</code>,<code>PreScore</code>,<code>Score</code>部分，本文将介绍<code>Preempt</code>部分。</p>
+<p>在调度过程中没有合适的节点能够调度pod则会发生抢占，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">node</span><span class="p">,</span> <span class="nx">victims</span><span class="p">,</span> <span class="nx">nominatedPodsToClear</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">sched</span><span class="p">.</span><span class="nx">Algorithm</span><span class="p">.</span><span class="nf">Preempt</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">prof</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">,</span> <span class="nx">scheduleErr</span><span class="p">)</span>
+<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+  <span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error preempting victims to make room for %v/%v: %v&#34;</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+  <span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在抢占阶段还将会用调度阶段的节点快照信息，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">Preempt</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">prof</span> <span class="o">*</span><span class="nx">profile</span><span class="p">.</span><span class="nx">Profile</span><span class="p">,</span> <span class="nx">state</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">scheduleErr</span> <span class="kt">error</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">,</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="c1">// Scheduler may return various types of errors. Consider preemption only if
+</span><span class="c1"></span>	<span class="c1">// the error is of type FitError.
+</span><span class="c1"></span>	<span class="nx">fitError</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">scheduleErr</span><span class="p">.(</span><span class="o">*</span><span class="nx">FitError</span><span class="p">)</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="o">||</span> <span class="nx">fitError</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nf">podEligibleToPreemptOthers</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">g</span><span class="p">.</span><span class="nx">nodeInfoSnapshot</span><span class="p">.</span><span class="nf">NodeInfos</span><span class="p">(),</span> <span class="nx">g</span><span class="p">.</span><span class="nx">enableNonPreempting</span><span class="p">)</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Pod %v/%v is not eligible for more preemption.&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="nx">allNodes</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nx">nodeInfoSnapshot</span><span class="p">.</span><span class="nf">NodeInfos</span><span class="p">().</span><span class="nf">List</span><span class="p">()</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">allNodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">ErrNoNodesAvailable</span>
+	<span class="p">}</span>
+	<span class="nx">potentialNodes</span> <span class="o">:=</span> <span class="nf">nodesWherePreemptionMightHelp</span><span class="p">(</span><span class="nx">allNodes</span><span class="p">,</span> <span class="nx">fitError</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">potentialNodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Preemption will not help schedule pod %v/%v on any node.&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+		<span class="c1">// In this case, we should clean-up any existing nominated node name of the pod.
+</span><span class="c1"></span>		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">{</span><span class="nx">pod</span><span class="p">},</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+  <span class="c1">//找到所有pdb配置
+</span><span class="c1"></span>	<span class="kd">var</span> <span class="nx">pdbs</span> <span class="p">[]</span><span class="o">*</span><span class="nx">policy</span><span class="p">.</span><span class="nx">PodDisruptionBudget</span>
+	<span class="k">if</span> <span class="nx">g</span><span class="p">.</span><span class="nx">pdbLister</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">pdbs</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">g</span><span class="p">.</span><span class="nx">pdbLister</span><span class="p">.</span><span class="nf">List</span><span class="p">(</span><span class="nx">labels</span><span class="p">.</span><span class="nf">Everything</span><span class="p">())</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="nx">nodeToVictims</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">selectNodesForPreemption</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">prof</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">potentialNodes</span><span class="p">,</span> <span class="nx">pdbs</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="c1">// We will only check nodeToVictims with extenders that support preemption.
+</span><span class="c1"></span>	<span class="c1">// Extenders which do not support preemption may later prevent preemptor from being scheduled on the nominated
+</span><span class="c1"></span>	<span class="c1">// node. In that case, scheduler will find a different host for the preemptor in subsequent scheduling cycles.
+</span><span class="c1"></span>	<span class="nx">nodeToVictims</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">processPreemptionWithExtenders</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeToVictims</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">candidateNode</span> <span class="o">:=</span> <span class="nf">pickOneNodeForPreemption</span><span class="p">(</span><span class="nx">nodeToVictims</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">candidateNode</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Lower priority pods nominated to run on this node, may no longer fit on
+</span><span class="c1"></span>	<span class="c1">// this node. So, we should remove their nomination. Removing their
+</span><span class="c1"></span>	<span class="c1">// nomination updates these pods and moves them to the active queue. It
+</span><span class="c1"></span>	<span class="c1">// lets scheduler find another place for them.
+</span><span class="c1"></span>	<span class="nx">nominatedPods</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">getLowerPriorityNominatedPods</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">candidateNode</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+	<span class="k">return</span> <span class="nx">candidateNode</span><span class="p">,</span> <span class="nx">nodeToVictims</span><span class="p">[</span><span class="nx">candidateNode</span><span class="p">].</span><span class="nx">Pods</span><span class="p">,</span> <span class="nx">nominatedPods</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在抢占节点会先检查pod是否能进行抢占。其中如果<code>pod.Status.NominatedNodeName</code>不为空，并且提名节点上有正在删除的pod则不会发生抢占，当然还有一些其他条件来判断是否会发生抢占，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="k">if</span> <span class="nx">enableNonPreempting</span> <span class="o">&amp;&amp;</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">PreemptionPolicy</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">&amp;&amp;</span> <span class="o">*</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">PreemptionPolicy</span> <span class="o">==</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">PreemptNever</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Pod %v/%v is not eligible for preemption because it has a preemptionPolicy of %v&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">PreemptNever</span><span class="p">)</span>
+		<span class="k">return</span> <span class="kc">false</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>接着会根据调度阶段的返回结果进行初步筛选能进行抢占的Node节点。<code>nodesWherePreemptionMightHelp</code>将会根据调度返回的结果进行过滤节点，如果过滤的节点码不是<code>UnschedulableAndUnresolvable</code>则都有机会进行抢占。
+然后会进行抢占调度的节点选择，在<code>selectNodesForPreemption</code>会并行启动多个协程进行节点筛选，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">selectNodesForPreemption</span><span class="p">(</span>
+	<span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span>
+	<span class="nx">prof</span> <span class="o">*</span><span class="nx">profile</span><span class="p">.</span><span class="nx">Profile</span><span class="p">,</span>
+	<span class="nx">state</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span>
+	<span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span>
+	<span class="nx">potentialNodes</span> <span class="p">[]</span><span class="o">*</span><span class="nx">schedulernodeinfo</span><span class="p">.</span><span class="nx">NodeInfo</span><span class="p">,</span>
+	<span class="nx">pdbs</span> <span class="p">[]</span><span class="o">*</span><span class="nx">policy</span><span class="p">.</span><span class="nx">PodDisruptionBudget</span><span class="p">,</span>
+<span class="p">)</span> <span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">]</span><span class="o">*</span><span class="nx">extenderv1</span><span class="p">.</span><span class="nx">Victims</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">nodeToVictims</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">]</span><span class="o">*</span><span class="nx">extenderv1</span><span class="p">.</span><span class="nx">Victims</span><span class="p">{}</span>
+	<span class="kd">var</span> <span class="nx">resultLock</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+
+	<span class="nx">checkNode</span> <span class="o">:=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">i</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+		<span class="nx">nodeInfoCopy</span> <span class="o">:=</span> <span class="nx">potentialNodes</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nf">Clone</span><span class="p">()</span>
+		<span class="nx">stateCopy</span> <span class="o">:=</span> <span class="nx">state</span><span class="p">.</span><span class="nf">Clone</span><span class="p">()</span>
+		<span class="nx">pods</span><span class="p">,</span> <span class="nx">numPDBViolations</span><span class="p">,</span> <span class="nx">fits</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">selectVictimsOnNode</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">prof</span><span class="p">,</span> <span class="nx">stateCopy</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeInfoCopy</span><span class="p">,</span> <span class="nx">pdbs</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">fits</span> <span class="p">{</span>
+			<span class="nx">resultLock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+			<span class="nx">victims</span> <span class="o">:=</span> <span class="nx">extenderv1</span><span class="p">.</span><span class="nx">Victims</span><span class="p">{</span>
+				<span class="nx">Pods</span><span class="p">:</span>             <span class="nx">pods</span><span class="p">,</span>
+				<span class="nx">NumPDBViolations</span><span class="p">:</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">numPDBViolations</span><span class="p">),</span>
+			<span class="p">}</span>
+			<span class="nx">nodeToVictims</span><span class="p">[</span><span class="nx">potentialNodes</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nf">Node</span><span class="p">()]</span> <span class="p">=</span> <span class="o">&amp;</span><span class="nx">victims</span>
+			<span class="nx">resultLock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="nx">workqueue</span><span class="p">.</span><span class="nf">ParallelizeUntil</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">TODO</span><span class="p">(),</span> <span class="mi">16</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">potentialNodes</span><span class="p">),</span> <span class="nx">checkNode</span><span class="p">)</span>
+	<span class="k">return</span> <span class="nx">nodeToVictims</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在上面的函数中可以看到最终的筛选是在匿名函数<code>checkNode</code>的<code>selectVictimsOnNode</code>完成。接下来详细分析这个函数，在这个函数中会先定义两个匿名函数<code>removePod</code>和<code>addPod</code>，抢占可以分为以下几个步骤，</p>
+<ol>
+<li>找到节点上优先级比抢占的pod低的pod，并执行<code>removePod</code>，在这里会执行各个plugin定义的<code>RemovePod</code>操作，默认实现这个操作的插件有<code>interpodaffinity</code>, <code>podtopologyspread</code>, <code>serviceaffinity</code>;</li>
+<li>通过<code>podPassesFiltersOnNode</code>检查pod是否符合在node节点上运行，这个就是调度策略的那个函数，同样会执行两边，检查nominated是否满足，再检查已经调度上的是否满足;</li>
+<li>按照优先级排序需要删除的pod，排序算法为先看pod的优先级，然后看pod的启动时间，启动越早优先级越高；</li>
+<li>通过<code>filterPodsWithPDBViolation</code>计算需要删除的pod是否满足pdb的要求，并最终将结果返回在两个pod slice分别是<code>violatingPods</code>和<code>nonViolatingPods</code>；</li>
+<li>根据上面选出来的<code>violatingPods</code>和<code>nonViolatingPods</code>，通过匿名函数<code>reprievePod</code>尽可能多的将pod重新调度到这个节点上；</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">reprievePod</span> <span class="o">:=</span> <span class="kd">func</span><span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+  <span class="c1">//先将删除的pod添加回来
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">addPod</span><span class="p">(</span><span class="nx">p</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+    <span class="c1">//判断添加完之后是否还符合抢占pod的调度
+</span><span class="c1"></span>		<span class="nx">fits</span><span class="p">,</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">podPassesFiltersOnNode</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">prof</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeInfo</span><span class="p">)</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">fits</span> <span class="p">{</span>
+      <span class="c1">//不符合就再删除pod
+</span><span class="c1"></span>			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">removePod</span><span class="p">(</span><span class="nx">p</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">err</span>
+			<span class="p">}</span>
+      <span class="c1">//并将这个需要删除的pod添加到最终的需要删除的slice
+</span><span class="c1"></span>			<span class="nx">victims</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">victims</span><span class="p">,</span> <span class="nx">p</span><span class="p">)</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Pod %v/%v is a potential preemption victim on node %v.&#34;</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">nodeInfo</span><span class="p">.</span><span class="nf">Node</span><span class="p">().</span><span class="nx">Name</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">fits</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>上面分析完内置的抢占逻辑之后将会运行用户通过extender方式扩展的抢占逻辑，这里会用上面过滤出来的结果进行再次过滤，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">nodeToVictims</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">processPreemptionWithExtenders</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeToVictims</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>最后在上面的结果中选择一个node节点，选择的原则是，</p>
+<ol>
+<li>节点需要驱逐的违反PDB的pod最少的节点；</li>
+<li>节点需要驱逐pod的最高优先级最小；</li>
+<li>如果上面还存在多个node，则分别将这些node上pod的优先级相加，取和最小的节点；</li>
+<li>如果上面还存在多个节点，则会选择需要驱逐的pod数量最小的节点；</li>
+<li>终极办法，选择最高优先级中pod创建时间最近的节点。</li>
+</ol>
+<p>最后通过<code>getLowerPriorityNominatedPods</code>将抢占pod上低优先级的nominated的pod选出来，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">getLowerPriorityNominatedPods</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">nodeName</span> <span class="kt">string</span><span class="p">)</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span> <span class="p">{</span>
+	<span class="nx">pods</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nx">schedulingQueue</span><span class="p">.</span><span class="nf">NominatedPodsForNode</span><span class="p">(</span><span class="nx">nodeName</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">pods</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="kd">var</span> <span class="nx">lowerPriorityPods</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span>
+	<span class="nx">podPriority</span> <span class="o">:=</span> <span class="nx">podutil</span><span class="p">.</span><span class="nf">GetPodPriority</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">p</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">pods</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">podutil</span><span class="p">.</span><span class="nf">GetPodPriority</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span> <span class="p">&lt;</span> <span class="nx">podPriority</span> <span class="p">{</span>
+			<span class="nx">lowerPriorityPods</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">lowerPriorityPods</span><span class="p">,</span> <span class="nx">p</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">lowerPriorityPods</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>到这里抢占的主要逻辑基本讲完了，后面将分析选出节点之后的操作。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="k">if</span> <span class="nx">node</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+  <span class="nx">nodeName</span> <span class="p">=</span> <span class="nx">node</span><span class="p">.</span><span class="nx">Name</span>
+  <span class="c1">// Update the scheduling queue with the nominated pod information. Without
+</span><span class="c1"></span>  <span class="c1">// this, there would be a race condition between the next scheduling cycle
+</span><span class="c1"></span>  <span class="c1">// and the time the scheduler receives a Pod Update for the nominated pod.
+</span><span class="c1"></span>  <span class="c1">//先更新nodeInfo中node对应的抢占pod信息，将将要抢占的pod写入到缓存中，
+</span><span class="c1"></span>  <span class="nx">sched</span><span class="p">.</span><span class="nx">SchedulingQueue</span><span class="p">.</span><span class="nf">UpdateNominatedPodForNode</span><span class="p">(</span><span class="nx">preemptor</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">)</span>
+
+  <span class="c1">// Make a call to update nominated node name of the pod on the API server.
+</span><span class="c1"></span>  <span class="c1">//更新pod对应的status，将nodename添加到pod.Status.NominatedNodeName
+</span><span class="c1"></span>  <span class="nx">err</span> <span class="p">=</span> <span class="nx">sched</span><span class="p">.</span><span class="nx">podPreemptor</span><span class="p">.</span><span class="nf">setNominatedNodeName</span><span class="p">(</span><span class="nx">preemptor</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">)</span>
+  <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+    <span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error in preemption process. Cannot set &#39;NominatedPod&#39; on pod %v/%v: %v&#34;</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+    <span class="nx">sched</span><span class="p">.</span><span class="nx">SchedulingQueue</span><span class="p">.</span><span class="nf">DeleteNominatedPodIfExists</span><span class="p">(</span><span class="nx">preemptor</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">err</span>
+  <span class="p">}</span>
+
+  <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">victim</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">victims</span> <span class="p">{</span>
+    <span class="c1">//调用k8s的API接口删除需要删除的pod，
+</span><span class="c1"></span>    <span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">sched</span><span class="p">.</span><span class="nx">podPreemptor</span><span class="p">.</span><span class="nf">deletePod</span><span class="p">(</span><span class="nx">victim</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+      <span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error preempting pod %v/%v: %v&#34;</span><span class="p">,</span> <span class="nx">victim</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">victim</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+      <span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">err</span>
+    <span class="p">}</span>
+    <span class="c1">// If the victim is a WaitingPod, send a reject message to the PermitPlugin
+</span><span class="c1"></span>    <span class="c1">//如果pod是正在等待的pod，则会直接停止等待，直接返回Unschedulable状态
+</span><span class="c1"></span>    <span class="k">if</span> <span class="nx">waitingPod</span> <span class="o">:=</span> <span class="nx">prof</span><span class="p">.</span><span class="nf">GetWaitingPod</span><span class="p">(</span><span class="nx">victim</span><span class="p">.</span><span class="nx">UID</span><span class="p">);</span> <span class="nx">waitingPod</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+      <span class="nx">waitingPod</span><span class="p">.</span><span class="nf">Reject</span><span class="p">(</span><span class="s">&#34;preempted&#34;</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="nx">prof</span><span class="p">.</span><span class="nx">Recorder</span><span class="p">.</span><span class="nf">Eventf</span><span class="p">(</span><span class="nx">victim</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">EventTypeNormal</span><span class="p">,</span> <span class="s">&#34;Preempted&#34;</span><span class="p">,</span> <span class="s">&#34;Preempting&#34;</span><span class="p">,</span> <span class="s">&#34;Preempted by %v/%v on node %v&#34;</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">preemptor</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">)</span>
+
+  <span class="p">}</span>
+  <span class="nx">metrics</span><span class="p">.</span><span class="nx">PreemptionVictims</span><span class="p">.</span><span class="nf">Observe</span><span class="p">(</span><span class="nb">float64</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">victims</span><span class="p">)))</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>最后清理需要清理的nominatedPod,通过k8s client修改pod.Status.NominatedNodeName为空</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">p</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">nominatedPodsToClear</span> <span class="p">{</span>
+  <span class="nx">rErr</span> <span class="o">:=</span> <span class="nx">sched</span><span class="p">.</span><span class="nx">podPreemptor</span><span class="p">.</span><span class="nf">removeNominatedNodeName</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
+  <span class="k">if</span> <span class="nx">rErr</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+    <span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Cannot remove &#39;NominatedPod&#39; field of pod: %v&#34;</span><span class="p">,</span> <span class="nx">rErr</span><span class="p">)</span>
+    <span class="c1">// We do not return as this error is not critical.
+</span><span class="c1"></span>  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>到这里抢占逻辑全部分析完了，最终也将整个逻辑大致画了一个图，可以参考一下。<br>
+<figure>
+    <img src="../images/%e8%b0%83%e5%ba%a6Preempt.png"/> 
+</figure>
+</p>
+<p>到这里抢占逻辑也分析完了，后面将分析framework架构中的其他部分。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-10-05 18:03
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/kube-scheduler/">kube-scheduler</a>
+          <a href="/tags/preempt/">Preempt</a>
+          </div>
+      <nav class="post-nav">
+        
+        <a class="next" href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/">
+            <span class="next-text nav-default">[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="756495135@qq.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
