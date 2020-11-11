@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <title>归档 - Welcome to zForrest</title>
+  <title>[计算机网络] TCP - Welcome to zForrest</title>
   <meta name="renderer" content="webkit" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
 
@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
 
 
-<meta name="author" content="zForrest" /><meta name="description" content="Hugo theme even example site." /><meta name="keywords" content="Hugo, theme, Forrest" />
+<meta name="author" content="zForrest" /><meta name="description" content="如何绕过三次握手 为了解决TCP连接需要经过一次RTT才能发送请求，Google提出TFO(TCP Fast Open)，用于提高两端连接的打开速度。 T" /><meta name="keywords" content="Hugo, theme, Forrest" />
 
 
 
@@ -26,9 +26,7 @@
 <meta name="generator" content="Hugo 0.74.3 with theme even" />
 
 
-<link rel="canonical" href="https://zwForrest.github.io/post/" />
-  <link href="https://zwForrest.github.io/post/index.xml" rel="alternate" type="application/rss+xml" title="Welcome to zForrest" />
-  <link href="https://zwForrest.github.io/post/index.xml" rel="feed" type="application/rss+xml" title="Welcome to zForrest" />
+<link rel="canonical" href="https://zwForrest.github.io/post/tcp/" />
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -41,16 +39,24 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
 
 
-<meta property="og:title" content="Posts" />
-<meta property="og:description" content="Hugo theme even example site." />
-<meta property="og:type" content="website" />
-<meta property="og:url" content="https://zwForrest.github.io/post/" />
-<meta property="og:updated_time" content="2020-11-09T18:03:56+08:00" />
-<meta itemprop="name" content="Posts">
-<meta itemprop="description" content="Hugo theme even example site.">
+<meta property="og:title" content="[计算机网络] TCP" />
+<meta property="og:description" content="如何绕过三次握手 为了解决TCP连接需要经过一次RTT才能发送请求，Google提出TFO(TCP Fast Open)，用于提高两端连接的打开速度。 T" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/tcp/" />
+<meta property="article:published_time" content="2020-11-09T18:03:56+08:00" />
+<meta property="article:modified_time" content="2020-11-09T18:03:56+08:00" />
+<meta itemprop="name" content="[计算机网络] TCP">
+<meta itemprop="description" content="如何绕过三次握手 为了解决TCP连接需要经过一次RTT才能发送请求，Google提出TFO(TCP Fast Open)，用于提高两端连接的打开速度。 T">
+<meta itemprop="datePublished" content="2020-11-09T18:03:56+08:00" />
+<meta itemprop="dateModified" content="2020-11-09T18:03:56+08:00" />
+<meta itemprop="wordCount" content="361">
+
+
+
+<meta itemprop="keywords" content="计算机网络,TCP," />
 <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="Posts"/>
-<meta name="twitter:description" content="Hugo theme even example site."/>
+<meta name="twitter:title" content="[计算机网络] TCP"/>
+<meta name="twitter:description" content="如何绕过三次握手 为了解决TCP连接需要经过一次RTT才能发送请求，Google提出TFO(TCP Fast Open)，用于提高两端连接的打开速度。 T"/>
 
 <!--[if lte IE 9]>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
@@ -114,136 +120,79 @@
     <main id="main" class="main">
       <div class="content-wrapper">
         <div id="content" class="content">
-          
-<section id="archive" class="archive">
-    <div class="archive-title">
-      <span class="archive-post-counter">
-        共计 14 篇文章
-      </span>
-    </div>
-      <div class="collection-title">
-        <h2 class="archive-year">2020</h2>
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[计算机网络] TCP</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-11-09 18:03 </span>
+        <div class="post-category">
+            <a href="/categories/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/"> 计算机网络 </a>
+            </div>
+          <span class="more-meta"> 约 361 字 </span>
+          <span class="more-meta"> 预计阅读 1 分钟 </span>
+        
       </div>
+    </header>
 
-    <div class="archive-post">
-      <span class="archive-post-time">
-        11-09
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/tcp/" class="archive-post-link">
-          [计算机网络] TCP
-        </a>
-      </span>
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents"></nav>
+  </div>
+</div>
+    <div class="post-content">
+      <blockquote>
+<p>如何绕过三次握手</p>
+</blockquote>
+<p>为了解决TCP连接需要经过一次RTT才能发送请求，Google提出TFO(TCP Fast Open)，用于提高两端连接的打开速度。<br>
+TFO也需要先经过三次握手，过程可以分为：</p>
+<ol>
+<li>Client发送SYN数据包，并包含FastOpen选项，Cookie为空；</li>
+<li>支持TCP Fast Open的服务器将生成Cookie，通过SYN-ACK返回给客户端；</li>
+<li>客户端将缓存FastOpen选项中的Cookie。</li>
+</ol>
+<p>后面客户端在发送SYN数据包的时候将会包含数据已经以前记录的Cookie，支持TCP Fast Open的服务端会对收到的Cookie进行校验；如果Cookie有效，服务器将在SYN-ACK中对SYN和客户端数据包进行确认，服务器将数据传输到应用程序。否则服务器将丢弃SYN数据包中的数据，在随后的SYN-ACK数据包中仅确认SYN对应的序列号。</p>
+
     </div>
 
-    <div class="archive-post">
-      <span class="archive-post-time">
-        10-09
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/kube-scheduler-%E5%9B%9B/" class="archive-post-link">
-          [Kubernetes] kube-scheduler源码分析(四)
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        10-07
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/kube-scheduler-%E4%B8%89/" class="archive-post-link">
-          [Kubernetes] kube-scheduler源码分析(三)
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        10-05
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/kube-scheduler-%E4%BA%8C/" class="archive-post-link">
-          [Kubernetes] kube-scheduler源码分析(二)
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        10-03
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/kube-scheduler-%E4%B8%80/" class="archive-post-link">
-          [Kubernetes] kube-scheduler源码分析(一)
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        08-18
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/" class="archive-post-link">
-          [Kubernetes] Kube-apiserver存储ETCD架构及源码分析
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        08-11
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/" class="archive-post-link">
-          [Kubernetes] Kubelet之CRI和CNI调用分析
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        08-09
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/" class="archive-post-link">
-          [Kubernetes]Index结构分析
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        08-08
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/informer/" class="archive-post-link">
-          [Kubernetes] Client-go分析
-        </a>
-      </span>
-    </div>
-
-    <div class="archive-post">
-      <span class="archive-post-time">
-        08-01
-      </span>
-      <span class="archive-post-title">
-        <a href="/post/clientset/" class="archive-post-link">
-          [kubernetes] Client
-        </a>
-      </span>
-    </div></section>
-
-<nav class="pagination">
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-11-09 18:03
+        
+    </span>
+  </p>
   
-  <a class="next" href="/post/page/2/">
-      <span class="next-text">下一页</span>
-      <i class="iconfont icon-right"></i>
-    </a>
-</nav>
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/">计算机网络</a>
+          <a href="/tags/tcp/">TCP</a>
+          </div>
+      <nav class="post-nav">
+        
+        <a class="next" href="/post/kube-scheduler-%E5%9B%9B/">
+            <span class="next-text nav-default">[Kubernetes] kube-scheduler源码分析(四)</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
         </div>
         
+
+  
+
+  
 
       </div>
     </main>

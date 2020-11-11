@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] kube-scheduler源码分析(一) - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="本文将基于1.18版本进行分析。 本是出于好奇调度器的framework是如何设计的，它到底是怎么做到将自定义的插件和原生的插件编译到一起，从" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/kube-scheduler-%E4%B8%80/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] kube-scheduler源码分析(一)" />
+<meta property="og:description" content="本文将基于1.18版本进行分析。 本是出于好奇调度器的framework是如何设计的，它到底是怎么做到将自定义的插件和原生的插件编译到一起，从" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/kube-scheduler-%E4%B8%80/" />
+<meta property="article:published_time" content="2020-10-03T18:03:56+08:00" />
+<meta property="article:modified_time" content="2020-10-03T18:03:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] kube-scheduler源码分析(一)">
+<meta itemprop="description" content="本文将基于1.18版本进行分析。 本是出于好奇调度器的framework是如何设计的，它到底是怎么做到将自定义的插件和原生的插件编译到一起，从">
+<meta itemprop="datePublished" content="2020-10-03T18:03:56+08:00" />
+<meta itemprop="dateModified" content="2020-10-03T18:03:56+08:00" />
+<meta itemprop="wordCount" content="6564">
+
+
+
+<meta itemprop="keywords" content="kubernetes,kube-scheduler," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] kube-scheduler源码分析(一)"/>
+<meta name="twitter:description" content="本文将基于1.18版本进行分析。 本是出于好奇调度器的framework是如何设计的，它到底是怎么做到将自定义的插件和原生的插件编译到一起，从"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] kube-scheduler源码分析(一)</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-10-03 18:03 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 6564 字 </span>
+          <span class="more-meta"> 预计阅读 14 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#初始化scheduler">初始化Scheduler</a>
+      <ul>
+        <li><a href="#schedulercache">schedulerCache</a></li>
+        <li><a href="#intreeregistry">InTreeRegistry</a></li>
+        <li><a href="#初始化scheduler-1">初始化scheduler</a></li>
+      </ul>
+    </li>
+    <li><a href="#run">Run</a>
+      <ul>
+        <li><a href="#队列逻辑处理">队列逻辑处理</a></li>
+        <li><a href="#调度scheduleone">调度（scheduleOne）</a></li>
+      </ul>
+    </li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <p>本文将基于1.18版本进行分析。<br>
+本是出于好奇调度器的<code>framework</code>是如何设计的，它到底是怎么做到将自定义的插件和原生的插件编译到一起，从而进行了相关的源码分析。</p>
+<h2 id="初始化scheduler">初始化Scheduler</h2>
+<p>人狠话不多，直接进入初始化部分。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">sched</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">scheduler</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">Client</span><span class="p">,</span>
+	<span class="nx">cc</span><span class="p">.</span><span class="nx">InformerFactory</span><span class="p">,</span>
+	<span class="nx">cc</span><span class="p">.</span><span class="nx">PodInformer</span><span class="p">,</span>
+	<span class="nx">recorderFactory</span><span class="p">,</span>
+	<span class="nx">ctx</span><span class="p">.</span><span class="nf">Done</span><span class="p">(),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithProfiles</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">Profiles</span><span class="o">...</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithAlgorithmSource</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">AlgorithmSource</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithPreemptionDisabled</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">DisablePreemption</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithPercentageOfNodesToScore</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">PercentageOfNodesToScore</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithBindTimeoutSeconds</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">BindTimeoutSeconds</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithFrameworkOutOfTreeRegistry</span><span class="p">(</span><span class="nx">outOfTreeRegistry</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithPodMaxBackoffSeconds</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">PodMaxBackoffSeconds</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithPodInitialBackoffSeconds</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">PodInitialBackoffSeconds</span><span class="p">),</span>
+	<span class="nx">scheduler</span><span class="p">.</span><span class="nf">WithExtenders</span><span class="p">(</span><span class="nx">cc</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">Extenders</span><span class="o">...</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></td></tr></table>
+</div>
+</div><h3 id="schedulercache">schedulerCache</h3>
+<p>初始化cache,</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">//kubernetes/pkg/scheduler/scheduler.go
+</span><span class="c1"></span><span class="nx">schedulerCache</span> <span class="o">:=</span> <span class="nx">internalcache</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="mi">30</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span> <span class="nx">stopEverything</span><span class="p">)</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>进入到<code>New</code>函数中，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// New returns a Cache implementation.
+</span><span class="c1">// It automatically starts a go routine that manages expiration of assumed pods.
+</span><span class="c1">// &#34;ttl&#34; is how long the assumed pod will get expired.
+</span><span class="c1">// &#34;stop&#34; is the channel that would close the background goroutine.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">New</span><span class="p">(</span><span class="nx">ttl</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">,</span> <span class="nx">stop</span> <span class="o">&lt;-</span><span class="kd">chan</span> <span class="kd">struct</span><span class="p">{})</span> <span class="nx">Cache</span> <span class="p">{</span>
+	<span class="nx">cache</span> <span class="o">:=</span> <span class="nf">newSchedulerCache</span><span class="p">(</span><span class="nx">ttl</span><span class="p">,</span> <span class="nx">cleanAssumedPeriod</span><span class="p">,</span> <span class="nx">stop</span><span class="p">)</span>
+	<span class="nx">cache</span><span class="p">.</span><span class="nf">run</span><span class="p">()</span>
+	<span class="k">return</span> <span class="nx">cache</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>cache.run()</code>函数中完成了过期的AssumedPods的清理过程。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cache</span> <span class="o">*</span><span class="nx">schedulerCache</span><span class="p">)</span> <span class="nf">run</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span><span class="nx">cache</span><span class="p">.</span><span class="nx">cleanupExpiredAssumedPods</span><span class="p">,</span> <span class="nx">cache</span><span class="p">.</span><span class="nx">period</span><span class="p">,</span> <span class="nx">cache</span><span class="p">.</span><span class="nx">stop</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里看到比较关键的<code>cleanupAssumedPods</code>，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// cleanupAssumedPods exists for making test deterministic by taking time as input argument.
+</span><span class="c1">// It also reports metrics on the cache size for nodes, pods, and assumed pods.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">cache</span> <span class="o">*</span><span class="nx">schedulerCache</span><span class="p">)</span> <span class="nf">cleanupAssumedPods</span><span class="p">(</span><span class="nx">now</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">cache</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">cache</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">cache</span><span class="p">.</span><span class="nf">updateMetrics</span><span class="p">()</span>
+
+	<span class="c1">// The size of assumedPods should be small
+</span><span class="c1"></span>  <span class="c1">//这里遍历所有的assumedPods，
+</span><span class="c1"></span>	<span class="k">for</span> <span class="nx">key</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">cache</span><span class="p">.</span><span class="nx">assumedPods</span> <span class="p">{</span>
+		<span class="nx">ps</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">cache</span><span class="p">.</span><span class="nx">podStates</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="s">&#34;Key found in assumed set but not in podStates. Potentially a logical error.&#34;</span><span class="p">)</span>
+		<span class="p">}</span>
+    <span class="c1">//如果已经完成绑定则跳过
+</span><span class="c1"></span>		<span class="k">if</span> <span class="p">!</span><span class="nx">ps</span><span class="p">.</span><span class="nx">bindingFinished</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Couldn&#39;t expire cache for pod %v/%v. Binding is still in progress.&#34;</span><span class="p">,</span>
+				<span class="nx">ps</span><span class="p">.</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">ps</span><span class="p">.</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+			<span class="k">continue</span>
+		<span class="p">}</span>
+    <span class="c1">//超过时间未绑定的则会进行清理
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nx">now</span><span class="p">.</span><span class="nf">After</span><span class="p">(</span><span class="o">*</span><span class="nx">ps</span><span class="p">.</span><span class="nx">deadline</span><span class="p">)</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">Warningf</span><span class="p">(</span><span class="s">&#34;Pod %s/%s expired&#34;</span><span class="p">,</span> <span class="nx">ps</span><span class="p">.</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">ps</span><span class="p">.</span><span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">cache</span><span class="p">.</span><span class="nf">expirePod</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">ps</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;ExpirePod failed for %s: %v&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>清理过期的pod cache</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cache</span> <span class="o">*</span><span class="nx">schedulerCache</span><span class="p">)</span> <span class="nf">expirePod</span><span class="p">(</span><span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">ps</span> <span class="o">*</span><span class="nx">podState</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">cache</span><span class="p">.</span><span class="nf">removePod</span><span class="p">(</span><span class="nx">ps</span><span class="p">.</span><span class="nx">pod</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+  <span class="c1">//删除对应assumedPods和podStates缓存中的pod信息
+</span><span class="c1"></span>	<span class="nb">delete</span><span class="p">(</span><span class="nx">cache</span><span class="p">.</span><span class="nx">assumedPods</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
+	<span class="nb">delete</span><span class="p">(</span><span class="nx">cache</span><span class="p">.</span><span class="nx">podStates</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>cache.removePod</code>操作中，会先把pod从对应的node的缓存中删除，然后会由<code>moveNodeInfoToHead</code>函数来调整node缓存双向链表的顺序，相当于实现了一个LRU功能。</p>
+<h3 id="intreeregistry">InTreeRegistry</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">//kubernetes/pkg/scheduler/scheduler.go
+</span><span class="c1"></span><span class="nx">registry</span> <span class="o">:=</span> <span class="nx">frameworkplugins</span><span class="p">.</span><span class="nf">NewInTreeRegistry</span><span class="p">()</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">registry</span><span class="p">.</span><span class="nf">Merge</span><span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">frameworkOutOfTreeRegistry</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里会将前面初始化好的<code>outoftreeregistry</code>和内置的功能进行合并。</p>
+<h3 id="初始化scheduler-1">初始化scheduler</h3>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">sched</span> <span class="o">*</span><span class="nx">Scheduler</span>
+	<span class="nx">source</span> <span class="o">:=</span> <span class="nx">options</span><span class="p">.</span><span class="nx">schedulerAlgorithmSource</span>
+	<span class="k">switch</span> <span class="p">{</span>
+	<span class="k">case</span> <span class="nx">source</span><span class="p">.</span><span class="nx">Provider</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">:</span>
+		<span class="c1">// Create the config from a named algorithm provider.
+</span><span class="c1"></span>		<span class="nx">sc</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">configurator</span><span class="p">.</span><span class="nf">createFromProvider</span><span class="p">(</span><span class="o">*</span><span class="nx">source</span><span class="p">.</span><span class="nx">Provider</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;couldn&#39;t create scheduler using provider %q: %v&#34;</span><span class="p">,</span> <span class="o">*</span><span class="nx">source</span><span class="p">.</span><span class="nx">Provider</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">sched</span> <span class="p">=</span> <span class="nx">sc</span>
+	<span class="k">case</span> <span class="nx">source</span><span class="p">.</span><span class="nx">Policy</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">:</span>
+		<span class="c1">// Create the config from a user specified policy source.
+</span><span class="c1"></span>		<span class="nx">policy</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">schedulerapi</span><span class="p">.</span><span class="nx">Policy</span><span class="p">{}</span>
+		<span class="k">switch</span> <span class="p">{</span>
+		<span class="k">case</span> <span class="nx">source</span><span class="p">.</span><span class="nx">Policy</span><span class="p">.</span><span class="nx">File</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">:</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">initPolicyFromFile</span><span class="p">(</span><span class="nx">source</span><span class="p">.</span><span class="nx">Policy</span><span class="p">.</span><span class="nx">File</span><span class="p">.</span><span class="nx">Path</span><span class="p">,</span> <span class="nx">policy</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+			<span class="p">}</span>
+		<span class="k">case</span> <span class="nx">source</span><span class="p">.</span><span class="nx">Policy</span><span class="p">.</span><span class="nx">ConfigMap</span> <span class="o">!=</span> <span class="kc">nil</span><span class="p">:</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">initPolicyFromConfigMap</span><span class="p">(</span><span class="nx">client</span><span class="p">,</span> <span class="nx">source</span><span class="p">.</span><span class="nx">Policy</span><span class="p">.</span><span class="nx">ConfigMap</span><span class="p">,</span> <span class="nx">policy</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+		<span class="c1">// Set extenders on the configurator now that we&#39;ve decoded the policy
+</span><span class="c1"></span>		<span class="c1">// In this case, c.extenders should be nil since we&#39;re using a policy (and therefore not componentconfig,
+</span><span class="c1"></span>		<span class="c1">// which would have set extenders in the above instantiation of Configurator from CC options)
+</span><span class="c1"></span>		<span class="nx">configurator</span><span class="p">.</span><span class="nx">extenders</span> <span class="p">=</span> <span class="nx">policy</span><span class="p">.</span><span class="nx">Extenders</span>
+		<span class="nx">sc</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">configurator</span><span class="p">.</span><span class="nf">createFromConfig</span><span class="p">(</span><span class="o">*</span><span class="nx">policy</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;couldn&#39;t create scheduler from policy: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">sched</span> <span class="p">=</span> <span class="nx">sc</span>
+	<span class="k">default</span><span class="p">:</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;unsupported algorithm source: %v&#34;</span><span class="p">,</span> <span class="nx">source</span><span class="p">)</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里根据不同的配置生成对应的<code>sched</code>，总共有两种方式初始化，第一种是默认的<code>DefaultProvider</code>，第二种<code>Policy</code>，policy有两种形式加载，包括从文件和ConfigMap。<br>
+这里先分析默认的方式，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// createFromProvider creates a scheduler from the name of a registered algorithm provider.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Configurator</span><span class="p">)</span> <span class="nf">createFromProvider</span><span class="p">(</span><span class="nx">providerName</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">Scheduler</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">2</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Creating scheduler from algorithm provider &#39;%v&#39;&#34;</span><span class="p">,</span> <span class="nx">providerName</span><span class="p">)</span>
+	<span class="nx">r</span> <span class="o">:=</span> <span class="nx">algorithmprovider</span><span class="p">.</span><span class="nf">NewRegistry</span><span class="p">()</span>
+	<span class="nx">defaultPlugins</span><span class="p">,</span> <span class="nx">exist</span> <span class="o">:=</span> <span class="nx">r</span><span class="p">[</span><span class="nx">providerName</span><span class="p">]</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">exist</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;algorithm provider %q is not registered&#34;</span><span class="p">,</span> <span class="nx">providerName</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">c</span><span class="p">.</span><span class="nx">profiles</span> <span class="p">{</span>
+		<span class="nx">prof</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">profiles</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+		<span class="nx">plugins</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">schedulerapi</span><span class="p">.</span><span class="nx">Plugins</span><span class="p">{}</span>
+		<span class="nx">plugins</span><span class="p">.</span><span class="nf">Append</span><span class="p">(</span><span class="nx">defaultPlugins</span><span class="p">)</span>
+		<span class="nx">plugins</span><span class="p">.</span><span class="nf">Apply</span><span class="p">(</span><span class="nx">prof</span><span class="p">.</span><span class="nx">Plugins</span><span class="p">)</span>
+		<span class="nx">prof</span><span class="p">.</span><span class="nx">Plugins</span> <span class="p">=</span> <span class="nx">plugins</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">c</span><span class="p">.</span><span class="nf">create</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里会将默认的plugins都加载进来，然后再创建<code>scheduler</code>，重点在<code>c.create</code>，在create中会先注册通过extenders注册的调度部分，然后通过<code>profile.NewMap</code>创建framework对应的部分，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span><span class="lnt">84
+</span><span class="lnt">85
+</span><span class="lnt">86
+</span><span class="lnt">87
+</span><span class="lnt">88
+</span><span class="lnt">89
+</span><span class="lnt">90
+</span><span class="lnt">91
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// create a scheduler from a set of registered plugins.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">Configurator</span><span class="p">)</span> <span class="nf">create</span><span class="p">()</span> <span class="p">(</span><span class="o">*</span><span class="nx">Scheduler</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">extenders</span> <span class="p">[]</span><span class="nx">core</span><span class="p">.</span><span class="nx">SchedulerExtender</span>
+	<span class="kd">var</span> <span class="nx">ignoredExtendedResources</span> <span class="p">[]</span><span class="kt">string</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">extenders</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="kd">var</span> <span class="nx">ignorableExtenders</span> <span class="p">[]</span><span class="nx">core</span><span class="p">.</span><span class="nx">SchedulerExtender</span>
+		<span class="k">for</span> <span class="nx">ii</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">c</span><span class="p">.</span><span class="nx">extenders</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">2</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Creating extender with config %+v&#34;</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">ii</span><span class="p">])</span>
+			<span class="nx">extender</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">core</span><span class="p">.</span><span class="nf">NewHTTPExtender</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">ii</span><span class="p">])</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+			<span class="p">}</span>
+			<span class="k">if</span> <span class="p">!</span><span class="nx">extender</span><span class="p">.</span><span class="nf">IsIgnorable</span><span class="p">()</span> <span class="p">{</span>
+				<span class="nx">extenders</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">extenders</span><span class="p">,</span> <span class="nx">extender</span><span class="p">)</span>
+			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+				<span class="nx">ignorableExtenders</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">ignorableExtenders</span><span class="p">,</span> <span class="nx">extender</span><span class="p">)</span>
+			<span class="p">}</span>
+			<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">r</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">c</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">ii</span><span class="p">].</span><span class="nx">ManagedResources</span> <span class="p">{</span>
+				<span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">IgnoredByScheduler</span> <span class="p">{</span>
+					<span class="nx">ignoredExtendedResources</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">ignoredExtendedResources</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+				<span class="p">}</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+		<span class="c1">// place ignorable extenders to the tail of extenders
+</span><span class="c1"></span>		<span class="nx">extenders</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">extenders</span><span class="p">,</span> <span class="nx">ignorableExtenders</span><span class="o">...</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="c1">// If there are any extended resources found from the Extenders, append them to the pluginConfig for each profile.
+</span><span class="c1"></span>	<span class="c1">// This should only have an effect on ComponentConfig v1alpha2, where it is possible to configure Extenders and
+</span><span class="c1"></span>	<span class="c1">// plugin args (and in which case the extender ignored resources take precedence).
+</span><span class="c1"></span>	<span class="c1">// For earlier versions, using both policy and custom plugin config is disallowed, so this should be the only
+</span><span class="c1"></span>	<span class="c1">// plugin config for this plugin.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">ignoredExtendedResources</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">c</span><span class="p">.</span><span class="nx">profiles</span> <span class="p">{</span>
+			<span class="nx">prof</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">c</span><span class="p">.</span><span class="nx">profiles</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span>
+			<span class="nx">prof</span><span class="p">.</span><span class="nx">PluginConfig</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">prof</span><span class="p">.</span><span class="nx">PluginConfig</span><span class="p">,</span>
+				<span class="nx">frameworkplugins</span><span class="p">.</span><span class="nf">NewPluginConfig</span><span class="p">(</span>
+					<span class="nx">noderesources</span><span class="p">.</span><span class="nx">FitName</span><span class="p">,</span>
+					<span class="nx">noderesources</span><span class="p">.</span><span class="nx">FitArgs</span><span class="p">{</span><span class="nx">IgnoredResources</span><span class="p">:</span> <span class="nx">ignoredExtendedResources</span><span class="p">},</span>
+				<span class="p">),</span>
+			<span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="nx">profiles</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">profile</span><span class="p">.</span><span class="nf">NewMap</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">profiles</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nx">buildFramework</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nx">recorderFactory</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;initializing profiles: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">profiles</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">errors</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="s">&#34;at least one profile is required&#34;</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="c1">// Profiles are required to have equivalent queue sort plugins.
+</span><span class="c1"></span>	<span class="nx">lessFn</span> <span class="o">:=</span> <span class="nx">profiles</span><span class="p">[</span><span class="nx">c</span><span class="p">.</span><span class="nx">profiles</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">SchedulerName</span><span class="p">].</span><span class="nx">Framework</span><span class="p">.</span><span class="nf">QueueSortFunc</span><span class="p">()</span>
+	<span class="nx">podQueue</span> <span class="o">:=</span> <span class="nx">internalqueue</span><span class="p">.</span><span class="nf">NewSchedulingQueue</span><span class="p">(</span>
+		<span class="nx">lessFn</span><span class="p">,</span>
+		<span class="nx">internalqueue</span><span class="p">.</span><span class="nf">WithPodInitialBackoffDuration</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">podInitialBackoffSeconds</span><span class="p">)</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">),</span>
+		<span class="nx">internalqueue</span><span class="p">.</span><span class="nf">WithPodMaxBackoffDuration</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">podMaxBackoffSeconds</span><span class="p">)</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">),</span>
+	<span class="p">)</span>
+
+	<span class="c1">// Setup cache debugger.
+</span><span class="c1"></span>	<span class="nx">debugger</span> <span class="o">:=</span> <span class="nx">cachedebugger</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">informerFactory</span><span class="p">.</span><span class="nf">Core</span><span class="p">().</span><span class="nf">V1</span><span class="p">().</span><span class="nf">Nodes</span><span class="p">().</span><span class="nf">Lister</span><span class="p">(),</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">podInformer</span><span class="p">.</span><span class="nf">Lister</span><span class="p">(),</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">schedulerCache</span><span class="p">,</span>
+		<span class="nx">podQueue</span><span class="p">,</span>
+	<span class="p">)</span>
+	<span class="nx">debugger</span><span class="p">.</span><span class="nf">ListenForSignal</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">StopEverything</span><span class="p">)</span>
+
+	<span class="nx">algo</span> <span class="o">:=</span> <span class="nx">core</span><span class="p">.</span><span class="nf">NewGenericScheduler</span><span class="p">(</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">schedulerCache</span><span class="p">,</span>
+		<span class="nx">podQueue</span><span class="p">,</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">nodeInfoSnapshot</span><span class="p">,</span>
+		<span class="nx">extenders</span><span class="p">,</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">informerFactory</span><span class="p">.</span><span class="nf">Core</span><span class="p">().</span><span class="nf">V1</span><span class="p">().</span><span class="nf">PersistentVolumeClaims</span><span class="p">().</span><span class="nf">Lister</span><span class="p">(),</span>
+		<span class="nf">GetPodDisruptionBudgetLister</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">informerFactory</span><span class="p">),</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">disablePreemption</span><span class="p">,</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">percentageOfNodesToScore</span><span class="p">,</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">enableNonPreempting</span><span class="p">,</span>
+	<span class="p">)</span>
+
+	<span class="k">return</span> <span class="o">&amp;</span><span class="nx">Scheduler</span><span class="p">{</span>
+		<span class="nx">SchedulerCache</span><span class="p">:</span>  <span class="nx">c</span><span class="p">.</span><span class="nx">schedulerCache</span><span class="p">,</span>
+		<span class="nx">Algorithm</span><span class="p">:</span>       <span class="nx">algo</span><span class="p">,</span>
+		<span class="nx">Profiles</span><span class="p">:</span>        <span class="nx">profiles</span><span class="p">,</span>
+		<span class="nx">NextPod</span><span class="p">:</span>         <span class="nx">internalqueue</span><span class="p">.</span><span class="nf">MakeNextPodFunc</span><span class="p">(</span><span class="nx">podQueue</span><span class="p">),</span>
+		<span class="nx">Error</span><span class="p">:</span>           <span class="nf">MakeDefaultErrorFunc</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">client</span><span class="p">,</span> <span class="nx">podQueue</span><span class="p">,</span> <span class="nx">c</span><span class="p">.</span><span class="nx">schedulerCache</span><span class="p">),</span>
+		<span class="nx">StopEverything</span><span class="p">:</span>  <span class="nx">c</span><span class="p">.</span><span class="nx">StopEverything</span><span class="p">,</span>
+		<span class="nx">VolumeBinder</span><span class="p">:</span>    <span class="nx">c</span><span class="p">.</span><span class="nx">volumeBinder</span><span class="p">,</span>
+		<span class="nx">SchedulingQueue</span><span class="p">:</span> <span class="nx">podQueue</span><span class="p">,</span>
+	<span class="p">},</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h4 id="schedulingqueue">SchedulingQueue</h4>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">PriorityQueue</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="nx">stop</span>  <span class="kd">chan</span> <span class="kd">struct</span><span class="p">{}</span>
+	<span class="nx">clock</span> <span class="nx">util</span><span class="p">.</span><span class="nx">Clock</span>
+
+	<span class="c1">// pod initial backoff duration.默认1s
+</span><span class="c1"></span>	<span class="nx">podInitialBackoffDuration</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span>
+	<span class="c1">// pod maximum backoff duration.默认10s
+</span><span class="c1"></span>	<span class="nx">podMaxBackoffDuration</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span>
+
+	<span class="nx">lock</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">RWMutex</span>
+	<span class="nx">cond</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Cond</span>
+
+	<span class="c1">// activeQ is heap structure that scheduler actively looks at to find pods to
+</span><span class="c1"></span>	<span class="c1">// schedule. Head of heap is the highest priority pod.
+</span><span class="c1"></span>	<span class="nx">activeQ</span> <span class="o">*</span><span class="nx">heap</span><span class="p">.</span><span class="nx">Heap</span>
+	<span class="c1">// podBackoffQ is a heap ordered by backoff expiry. Pods which have completed backoff
+</span><span class="c1"></span>	<span class="c1">// are popped from this heap before the scheduler looks at activeQ
+</span><span class="c1"></span>	<span class="nx">podBackoffQ</span> <span class="o">*</span><span class="nx">heap</span><span class="p">.</span><span class="nx">Heap</span>
+	<span class="c1">// unschedulableQ holds pods that have been tried and determined unschedulable.
+</span><span class="c1"></span>	<span class="nx">unschedulableQ</span> <span class="o">*</span><span class="nx">UnschedulablePodsMap</span>
+	<span class="c1">// nominatedPods is a structures that stores pods which are nominated to run
+</span><span class="c1"></span>	<span class="c1">// on nodes.
+</span><span class="c1"></span>	<span class="nx">nominatedPods</span> <span class="o">*</span><span class="nx">nominatedPodMap</span>
+	<span class="c1">// schedulingCycle represents sequence number of scheduling cycle and is incremented
+</span><span class="c1"></span>	<span class="c1">// when a pod is popped.
+</span><span class="c1"></span>	<span class="nx">schedulingCycle</span> <span class="kt">int64</span>
+	<span class="c1">// moveRequestCycle caches the sequence number of scheduling cycle when we
+</span><span class="c1"></span>	<span class="c1">// received a move request. Unscheduable pods in and before this scheduling
+</span><span class="c1"></span>	<span class="c1">// cycle will be put back to activeQueue if we were trying to schedule them
+</span><span class="c1"></span>	<span class="c1">// when we received move request.
+</span><span class="c1"></span>	<span class="nx">moveRequestCycle</span> <span class="kt">int64</span>
+
+	<span class="c1">// closed indicates that the queue is closed.
+</span><span class="c1"></span>	<span class="c1">// It is mainly used to let Pop() exit its control loop while waiting for an item.
+</span><span class="c1"></span>	<span class="nx">closed</span> <span class="kt">bool</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><ol>
+<li>这是一个三级队列包括<code>activeQ</code>，<code>unschedulableQ</code>, <code>podBackoffQ</code>，第一种是在等待调度队列，第二个是由于资源不能满足需求而被加入到不可调度队列，等待重试，第三个是重试很多次之后依然无法调度的队列，在这里为了多次重试造成的资源浪费。</li>
+<li><code>activeQ</code>和<code>podBackoffQ</code>是由堆结构构成。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">type</span> <span class="nx">Heap</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="c1">// data stores objects and has a queue that keeps their ordering according
+</span><span class="c1"></span>	<span class="c1">// to the heap invariant.
+</span><span class="c1"></span>	<span class="nx">data</span> <span class="o">*</span><span class="nx">data</span>
+	<span class="c1">// metricRecorder updates the counter when elements of a heap get added or
+</span><span class="c1"></span>	<span class="c1">// removed, and it does nothing if it&#39;s nil
+</span><span class="c1"></span>	<span class="nx">metricRecorder</span> <span class="nx">metrics</span><span class="p">.</span><span class="nx">MetricRecorder</span>
+<span class="p">}</span>
+
+<span class="kd">type</span> <span class="nx">data</span> <span class="kd">struct</span> <span class="p">{</span>
+	<span class="c1">// items is a map from key of the objects to the objects and their index.
+</span><span class="c1"></span>	<span class="c1">// We depend on the property that items in the map are in the queue and vice versa.
+</span><span class="c1"></span>	<span class="nx">items</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">heapItem</span>
+	<span class="c1">// queue implements a heap data structure and keeps the order of elements
+</span><span class="c1"></span>	<span class="c1">// according to the heap invariant. The queue keeps the keys of objects stored
+</span><span class="c1"></span>	<span class="c1">// in &#34;items&#34;.
+</span><span class="c1"></span>	<span class="nx">queue</span> <span class="p">[]</span><span class="kt">string</span>
+
+	<span class="c1">// keyFunc is used to make the key used for queued item insertion and retrieval, and
+</span><span class="c1"></span>	<span class="c1">// should be deterministic.
+</span><span class="c1"></span>	<span class="nx">keyFunc</span> <span class="nx">KeyFunc</span>
+	<span class="c1">// lessFunc is used to compare two objects in the heap.
+</span><span class="c1"></span>	<span class="nx">lessFunc</span> <span class="nx">lessFunc</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里的<code>lessFunc</code>默认是prioritySort的plugin(Kubernetes/pkg/scheduler/framework/plugins/queuesort/prioty_sort.go)，这个在<code>createFromProvider</code>的<code>NewRegistry</code>初始化。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Less is the function used by the activeQ heap algorithm to sort pods.
+</span><span class="c1">// It sorts pods based on their priority. When priorities are equal, it uses
+</span><span class="c1">// PodInfo.timestamp.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">pl</span> <span class="o">*</span><span class="nx">PrioritySort</span><span class="p">)</span> <span class="nf">Less</span><span class="p">(</span><span class="nx">pInfo1</span><span class="p">,</span> <span class="nx">pInfo2</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">)</span> <span class="kt">bool</span> <span class="p">{</span>
+	<span class="nx">p1</span> <span class="o">:=</span> <span class="nx">pod</span><span class="p">.</span><span class="nf">GetPodPriority</span><span class="p">(</span><span class="nx">pInfo1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span>
+	<span class="nx">p2</span> <span class="o">:=</span> <span class="nx">pod</span><span class="p">.</span><span class="nf">GetPodPriority</span><span class="p">(</span><span class="nx">pInfo2</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span>
+	<span class="k">return</span> <span class="p">(</span><span class="nx">p1</span> <span class="p">&gt;</span> <span class="nx">p2</span><span class="p">)</span> <span class="o">||</span> <span class="p">(</span><span class="nx">p1</span> <span class="o">==</span> <span class="nx">p2</span> <span class="o">&amp;&amp;</span> <span class="nx">pInfo1</span><span class="p">.</span><span class="nx">Timestamp</span><span class="p">.</span><span class="nf">Before</span><span class="p">(</span><span class="nx">pInfo2</span><span class="p">.</span><span class="nx">Timestamp</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这个是针对<code>activeQ</code>中比较优先级的函数，在<code>podBackoffQ</code>中，则是通过判断两个pod的backoff时间，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">PriorityQueue</span><span class="p">)</span> <span class="nf">podsCompareBackoffCompleted</span><span class="p">(</span><span class="nx">podInfo1</span><span class="p">,</span> <span class="nx">podInfo2</span> <span class="kd">interface</span><span class="p">{})</span> <span class="kt">bool</span> <span class="p">{</span>
+	<span class="nx">pInfo1</span> <span class="o">:=</span> <span class="nx">podInfo1</span><span class="p">.(</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">)</span>
+	<span class="nx">pInfo2</span> <span class="o">:=</span> <span class="nx">podInfo2</span><span class="p">.(</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">)</span>
+	<span class="nx">bo1</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">getBackoffTime</span><span class="p">(</span><span class="nx">pInfo1</span><span class="p">)</span>
+	<span class="nx">bo2</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">getBackoffTime</span><span class="p">(</span><span class="nx">pInfo2</span><span class="p">)</span>
+	<span class="k">return</span> <span class="nx">bo1</span><span class="p">.</span><span class="nf">Before</span><span class="p">(</span><span class="nx">bo2</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>先分析<code>PriorityQueue</code>的Add和Pop函数，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">PriorityQueue</span><span class="p">)</span> <span class="nf">Add</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="nx">pInfo</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">newPodInfo</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">activeQ</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">pInfo</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error adding pod %v to the scheduling queue: %v&#34;</span><span class="p">,</span> <span class="nf">nsNameForPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">unschedulableQ</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error: pod %v is already in the unschedulable queue.&#34;</span><span class="p">,</span> <span class="nf">nsNameForPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">))</span>
+		<span class="nx">p</span><span class="p">.</span><span class="nx">unschedulableQ</span><span class="p">.</span><span class="nb">delete</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="c1">// Delete pod from backoffQ if it is backing off
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">podBackoffQ</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="nx">pInfo</span><span class="p">);</span> <span class="nx">err</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error: pod %v is already in the podBackoff queue.&#34;</span><span class="p">,</span> <span class="nf">nsNameForPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">))</span>
+	<span class="p">}</span>
+	<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerQueueIncomingPods</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;active&#34;</span><span class="p">,</span> <span class="nx">PodAdd</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">nominatedPods</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">)</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">cond</span><span class="p">.</span><span class="nf">Broadcast</span><span class="p">()</span>
+
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">PriorityQueue</span><span class="p">)</span> <span class="nf">Pop</span><span class="p">()</span> <span class="p">(</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="k">for</span> <span class="nx">p</span><span class="p">.</span><span class="nx">activeQ</span><span class="p">.</span><span class="nf">Len</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="c1">// When the queue is empty, invocation of Pop() is blocked until new item is enqueued.
+</span><span class="c1"></span>		<span class="c1">// When Close() is called, the p.closed is set and the condition is broadcast,
+</span><span class="c1"></span>		<span class="c1">// which causes this loop to continue and return from the Pop().
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nx">closed</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">queueClosed</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">p</span><span class="p">.</span><span class="nx">cond</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+	<span class="p">}</span>
+	<span class="nx">obj</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">activeQ</span><span class="p">.</span><span class="nf">Pop</span><span class="p">()</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">pInfo</span> <span class="o">:=</span> <span class="nx">obj</span><span class="p">.(</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">)</span>
+	<span class="nx">pInfo</span><span class="p">.</span><span class="nx">Attempts</span><span class="o">++</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">schedulingCycle</span><span class="o">++</span>
+	<span class="k">return</span> <span class="nx">pInfo</span><span class="p">,</span> <span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>Add</code>函数中会将数据加入到ActiveQ，如果数据还存在unschedulerQ和backoffQ同时会进行清理。在<code>Pop</code>会从activeQ中取出一个元素然后将pod的尝试调度次数和队列的调度周期都加1。</p>
+<h2 id="run">Run</h2>
+<h3 id="队列逻辑处理">队列逻辑处理</h3>
+<p>这里包括了前面的三级队列的处理和调度逻辑</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">sched</span> <span class="o">*</span><span class="nx">Scheduler</span><span class="p">)</span> <span class="nf">Run</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">cache</span><span class="p">.</span><span class="nf">WaitForCacheSync</span><span class="p">(</span><span class="nx">ctx</span><span class="p">.</span><span class="nf">Done</span><span class="p">(),</span> <span class="nx">sched</span><span class="p">.</span><span class="nx">scheduledPodsHasSynced</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+	<span class="nx">sched</span><span class="p">.</span><span class="nx">SchedulingQueue</span><span class="p">.</span><span class="nf">Run</span><span class="p">()</span>
+	<span class="nx">wait</span><span class="p">.</span><span class="nf">UntilWithContext</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">sched</span><span class="p">.</span><span class="nx">scheduleOne</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+	<span class="nx">sched</span><span class="p">.</span><span class="nx">SchedulingQueue</span><span class="p">.</span><span class="nf">Close</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>sched.SchedulingQueue.Run()</code>函数处理了各个队列之间的关系。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">PriorityQueue</span><span class="p">)</span> <span class="nf">Run</span><span class="p">()</span> <span class="p">{</span>
+	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">flushBackoffQCompleted</span><span class="p">,</span> <span class="mf">1.0</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">stop</span><span class="p">)</span>
+	<span class="k">go</span> <span class="nx">wait</span><span class="p">.</span><span class="nf">Until</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">flushUnschedulableQLeftover</span><span class="p">,</span> <span class="mi">30</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">stop</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><ol>
+<li>先看<code>flushBackoffQCompleted</code>，在这里会将backoff中的pod信息从<code>podBackoffQ</code>中加入到<code>activeQ</code>。</li>
+</ol>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">PriorityQueue</span><span class="p">)</span> <span class="nf">flushBackoffQCompleted</span><span class="p">()</span> <span class="p">{</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="k">for</span> <span class="p">{</span>
+		<span class="nx">rawPodInfo</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">podBackoffQ</span><span class="p">.</span><span class="nf">Peek</span><span class="p">()</span>
+		<span class="k">if</span> <span class="nx">rawPodInfo</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span>
+		<span class="p">}</span>
+		<span class="nx">pod</span> <span class="o">:=</span> <span class="nx">rawPodInfo</span><span class="p">.(</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">).</span><span class="nx">Pod</span>
+		<span class="nx">boTime</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nf">getBackoffTime</span><span class="p">(</span><span class="nx">rawPodInfo</span><span class="p">.(</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">))</span>
+		<span class="k">if</span> <span class="nx">boTime</span><span class="p">.</span><span class="nf">After</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">clock</span><span class="p">.</span><span class="nf">Now</span><span class="p">())</span> <span class="p">{</span>
+			<span class="k">return</span>
+		<span class="p">}</span>
+		<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">podBackoffQ</span><span class="p">.</span><span class="nf">Pop</span><span class="p">()</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Unable to pop pod %v from backoff queue despite backoff completion.&#34;</span><span class="p">,</span> <span class="nf">nsNameForPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">))</span>
+			<span class="k">return</span>
+		<span class="p">}</span>
+		<span class="nx">p</span><span class="p">.</span><span class="nx">activeQ</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">rawPodInfo</span><span class="p">)</span>
+		<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerQueueIncomingPods</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;active&#34;</span><span class="p">,</span> <span class="nx">BackoffComplete</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+		<span class="k">defer</span> <span class="nx">p</span><span class="p">.</span><span class="nx">cond</span><span class="p">.</span><span class="nf">Broadcast</span><span class="p">()</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里会先取出栈顶元素，然后看是否backoff时间是否到了，这里的队列是按照时间排序的，如果没有则退出。如果到了时间则把pod信息添加到<code>activeQ</code>,这里会一直找到那个没有到时间的所有pod,然后通过<code>p.cond.Broadcast</code>广播。
+2. 在<code>flushUnschedulableQLeftover</code>中会将unschedulableQ队列里的pod信息按照要求加入到backoff或者active队列。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">PriorityQueue</span><span class="p">)</span> <span class="nf">flushUnschedulableQLeftover</span><span class="p">()</span> <span class="p">{</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">p</span><span class="p">.</span><span class="nx">lock</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+
+	<span class="kd">var</span> <span class="nx">podsToMove</span> <span class="p">[]</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span>
+	<span class="nx">currentTime</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">clock</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">pInfo</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">p</span><span class="p">.</span><span class="nx">unschedulableQ</span><span class="p">.</span><span class="nx">podInfoMap</span> <span class="p">{</span>
+		<span class="nx">lastScheduleTime</span> <span class="o">:=</span> <span class="nx">pInfo</span><span class="p">.</span><span class="nx">Timestamp</span>
+		<span class="k">if</span> <span class="nx">currentTime</span><span class="p">.</span><span class="nf">Sub</span><span class="p">(</span><span class="nx">lastScheduleTime</span><span class="p">)</span> <span class="p">&gt;</span> <span class="nx">unschedulableQTimeInterval</span> <span class="p">{</span>
+			<span class="nx">podsToMove</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">podsToMove</span><span class="p">,</span> <span class="nx">pInfo</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">podsToMove</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="nx">p</span><span class="p">.</span><span class="nf">movePodsToActiveOrBackoffQueue</span><span class="p">(</span><span class="nx">podsToMove</span><span class="p">,</span> <span class="nx">UnschedulableTimeout</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里会先将上次调度时间超过一分钟的pod信息都加到<code>podsToMove</code>，然后通过<code>movePodsToActiveOrBackoffQueue</code>将pod信息加入到active或backoff队列。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">p</span> <span class="o">*</span><span class="nx">PriorityQueue</span><span class="p">)</span> <span class="nf">movePodsToActiveOrBackoffQueue</span><span class="p">(</span><span class="nx">podInfoList</span> <span class="p">[]</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">PodInfo</span><span class="p">,</span> <span class="nx">event</span> <span class="kt">string</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">pInfo</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">podInfoList</span> <span class="p">{</span>
+		<span class="nx">pod</span> <span class="o">:=</span> <span class="nx">pInfo</span><span class="p">.</span><span class="nx">Pod</span>
+		<span class="k">if</span> <span class="nx">p</span><span class="p">.</span><span class="nf">isPodBackingoff</span><span class="p">(</span><span class="nx">pInfo</span><span class="p">)</span> <span class="p">{</span>
+      <span class="c1">//如果还在backoff阶段，则会将pod加入到backoff队列。。
+</span><span class="c1"></span>			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">podBackoffQ</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">pInfo</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error adding pod %v to the backoff queue: %v&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+				<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerQueueIncomingPods</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;backoff&#34;</span><span class="p">,</span> <span class="nx">event</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+				<span class="nx">p</span><span class="p">.</span><span class="nx">unschedulableQ</span><span class="p">.</span><span class="nb">delete</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+			<span class="p">}</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">activeQ</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nx">pInfo</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;Error adding pod %v to the scheduling queue: %v&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+				<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerQueueIncomingPods</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;active&#34;</span><span class="p">,</span> <span class="nx">event</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+				<span class="nx">p</span><span class="p">.</span><span class="nx">unschedulableQ</span><span class="p">.</span><span class="nb">delete</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+  <span class="c1">//更新PriorityQueue中的moveRequestCycle
+</span><span class="c1"></span>	<span class="nx">p</span><span class="p">.</span><span class="nx">moveRequestCycle</span> <span class="p">=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">schedulingCycle</span>
+	<span class="nx">p</span><span class="p">.</span><span class="nx">cond</span><span class="p">.</span><span class="nf">Broadcast</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><h3 id="调度scheduleone">调度（scheduleOne）</h3>
+<p>在<code>schedule</code>中会先通过<code>podPassesBassicChecks</code>检测Pod所关联的PVC是否已经创建，然后
+通过<code>g.snapshot</code>将现有node信息进行快照；再通过<code>prof.RunPreFilterPlugins</code>执行PreFilter Plugins等操作，具体可看代码：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">Schedule</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">prof</span> <span class="o">*</span><span class="nx">profile</span><span class="p">.</span><span class="nx">Profile</span><span class="p">,</span> <span class="nx">state</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span> <span class="p">(</span><span class="nx">result</span> <span class="nx">ScheduleResult</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">trace</span> <span class="o">:=</span> <span class="nx">utiltrace</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="s">&#34;Scheduling&#34;</span><span class="p">,</span> <span class="nx">utiltrace</span><span class="p">.</span><span class="nx">Field</span><span class="p">{</span><span class="nx">Key</span><span class="p">:</span> <span class="s">&#34;namespace&#34;</span><span class="p">,</span> <span class="nx">Value</span><span class="p">:</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">},</span> <span class="nx">utiltrace</span><span class="p">.</span><span class="nx">Field</span><span class="p">{</span><span class="nx">Key</span><span class="p">:</span> <span class="s">&#34;name&#34;</span><span class="p">,</span> <span class="nx">Value</span><span class="p">:</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">})</span>
+	<span class="k">defer</span> <span class="nx">trace</span><span class="p">.</span><span class="nf">LogIfLong</span><span class="p">(</span><span class="mi">100</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nf">podPassesBasicChecks</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">g</span><span class="p">.</span><span class="nx">pvcLister</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">trace</span><span class="p">.</span><span class="nf">Step</span><span class="p">(</span><span class="s">&#34;Basic checks done&#34;</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">snapshot</span><span class="p">();</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">trace</span><span class="p">.</span><span class="nf">Step</span><span class="p">(</span><span class="s">&#34;Snapshotting scheduler cache and node infos done&#34;</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="nx">g</span><span class="p">.</span><span class="nx">nodeInfoSnapshot</span><span class="p">.</span><span class="nf">NumNodes</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">ErrNoNodesAvailable</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Run &#34;prefilter&#34; plugins.
+</span><span class="c1"></span>	<span class="nx">preFilterStatus</span> <span class="o">:=</span> <span class="nx">prof</span><span class="p">.</span><span class="nf">RunPreFilterPlugins</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">)</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">preFilterStatus</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">preFilterStatus</span><span class="p">.</span><span class="nf">AsError</span><span class="p">()</span>
+	<span class="p">}</span>
+	<span class="nx">trace</span><span class="p">.</span><span class="nf">Step</span><span class="p">(</span><span class="s">&#34;Running prefilter plugins done&#34;</span><span class="p">)</span>
+
+	<span class="nx">startPredicateEvalTime</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+	<span class="nx">filteredNodes</span><span class="p">,</span> <span class="nx">filteredNodesStatuses</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">findNodesThatFitPod</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">prof</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="nx">trace</span><span class="p">.</span><span class="nf">Step</span><span class="p">(</span><span class="s">&#34;Computing predicates done&#34;</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">filteredNodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">FitError</span><span class="p">{</span>
+			<span class="nx">Pod</span><span class="p">:</span>                   <span class="nx">pod</span><span class="p">,</span>
+			<span class="nx">NumAllNodes</span><span class="p">:</span>           <span class="nx">g</span><span class="p">.</span><span class="nx">nodeInfoSnapshot</span><span class="p">.</span><span class="nf">NumNodes</span><span class="p">(),</span>
+			<span class="nx">FilteredNodesStatuses</span><span class="p">:</span> <span class="nx">filteredNodesStatuses</span><span class="p">,</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Run &#34;prescore&#34; plugins.
+</span><span class="c1"></span>	<span class="nx">prescoreStatus</span> <span class="o">:=</span> <span class="nx">prof</span><span class="p">.</span><span class="nf">RunPreScorePlugins</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">filteredNodes</span><span class="p">)</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">prescoreStatus</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">prescoreStatus</span><span class="p">.</span><span class="nf">AsError</span><span class="p">()</span>
+	<span class="p">}</span>
+	<span class="nx">trace</span><span class="p">.</span><span class="nf">Step</span><span class="p">(</span><span class="s">&#34;Running prescore plugins done&#34;</span><span class="p">)</span>
+
+	<span class="nx">metrics</span><span class="p">.</span><span class="nx">DeprecatedSchedulingAlgorithmPredicateEvaluationSecondsDuration</span><span class="p">.</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nf">SinceInSeconds</span><span class="p">(</span><span class="nx">startPredicateEvalTime</span><span class="p">))</span>
+	<span class="nx">metrics</span><span class="p">.</span><span class="nx">DeprecatedSchedulingDuration</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nx">PredicateEvaluation</span><span class="p">).</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nf">SinceInSeconds</span><span class="p">(</span><span class="nx">startPredicateEvalTime</span><span class="p">))</span>
+
+	<span class="nx">startPriorityEvalTime</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+	<span class="c1">// When only one node after predicate, just use it.
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">filteredNodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="p">{</span>
+		<span class="nx">metrics</span><span class="p">.</span><span class="nx">DeprecatedSchedulingAlgorithmPriorityEvaluationSecondsDuration</span><span class="p">.</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nf">SinceInSeconds</span><span class="p">(</span><span class="nx">startPriorityEvalTime</span><span class="p">))</span>
+		<span class="k">return</span> <span class="nx">ScheduleResult</span><span class="p">{</span>
+			<span class="nx">SuggestedHost</span><span class="p">:</span>  <span class="nx">filteredNodes</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Name</span><span class="p">,</span>
+			<span class="nx">EvaluatedNodes</span><span class="p">:</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">filteredNodesStatuses</span><span class="p">),</span>
+			<span class="nx">FeasibleNodes</span><span class="p">:</span>  <span class="mi">1</span><span class="p">,</span>
+		<span class="p">},</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="nx">priorityList</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">prioritizeNodes</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">prof</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">filteredNodes</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">metrics</span><span class="p">.</span><span class="nx">DeprecatedSchedulingAlgorithmPriorityEvaluationSecondsDuration</span><span class="p">.</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nf">SinceInSeconds</span><span class="p">(</span><span class="nx">startPriorityEvalTime</span><span class="p">))</span>
+	<span class="nx">metrics</span><span class="p">.</span><span class="nx">DeprecatedSchedulingDuration</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nx">PriorityEvaluation</span><span class="p">).</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nf">SinceInSeconds</span><span class="p">(</span><span class="nx">startPriorityEvalTime</span><span class="p">))</span>
+
+	<span class="nx">host</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">selectHost</span><span class="p">(</span><span class="nx">priorityList</span><span class="p">)</span>
+	<span class="nx">trace</span><span class="p">.</span><span class="nf">Step</span><span class="p">(</span><span class="s">&#34;Prioritizing done&#34;</span><span class="p">)</span>
+
+	<span class="k">return</span> <span class="nx">ScheduleResult</span><span class="p">{</span>
+		<span class="nx">SuggestedHost</span><span class="p">:</span>  <span class="nx">host</span><span class="p">,</span>
+		<span class="nx">EvaluatedNodes</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="nx">filteredNodes</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="nx">filteredNodesStatuses</span><span class="p">),</span>
+		<span class="nx">FeasibleNodes</span><span class="p">:</span>  <span class="nb">len</span><span class="p">(</span><span class="nx">filteredNodes</span><span class="p">),</span>
+	<span class="p">},</span> <span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>针对<code>Filters</code>部分做详细分解。
+<code>findNodesThatPassFilters</code>主要是执行Filters plugin操作。</p>
+<ol>
+<li>先确定需要进行调度的node数量<code>g.numFeasibleNodesToFind</code>；</li>
+<li>定义<code>checkNode</code>函数；</li>
+<li><code>workqueue.ParallelizeUntil</code>，启动协程去执行上面的checkNode</li>
+</ol>
+<p>在<code>checkNode</code>调用<code>podPassesFiltersOnNode</code>检查node是否满足需要调度pod的filter plugins。这个函数会被<code>Schedule</code>和<code>Preempt</code>两个阶段调用，第一个阶段会检查这个pod是否满足已经存在node节点上的pods的需要，并且满足节点相等或更高优先级的<code>nominated</code> pods满足filter需求。在<code>Preempt</code>阶段，将会去掉将要驱逐的pods,并加上<code>nominated</code> pods。
+在这里会执行两遍逻辑，其中主要是为了检查<code>nominated</code> pods存在与否产生的不同结果。详细的可以看代码注释部分。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">podPassesFiltersOnNode</span><span class="p">(</span>
+	<span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span>
+	<span class="nx">prof</span> <span class="o">*</span><span class="nx">profile</span><span class="p">.</span><span class="nx">Profile</span><span class="p">,</span>
+	<span class="nx">state</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span>
+	<span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span>
+	<span class="nx">info</span> <span class="o">*</span><span class="nx">schedulernodeinfo</span><span class="p">.</span><span class="nx">NodeInfo</span><span class="p">,</span>
+<span class="p">)</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">Status</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">status</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">Status</span>
+
+	<span class="nx">podsAdded</span> <span class="o">:=</span> <span class="kc">false</span>
+	<span class="c1">// We run filters twice in some cases. If the node has greater or equal priority
+</span><span class="c1"></span>	<span class="c1">// nominated pods, we run them when those pods are added to PreFilter state and nodeInfo.
+</span><span class="c1"></span>	<span class="c1">// If all filters succeed in this pass, we run them again when these
+</span><span class="c1"></span>	<span class="c1">// nominated pods are not added. This second pass is necessary because some
+</span><span class="c1"></span>	<span class="c1">// filters such as inter-pod affinity may not pass without the nominated pods.
+</span><span class="c1"></span>	<span class="c1">// If there are no nominated pods for the node or if the first run of the
+</span><span class="c1"></span>	<span class="c1">// filters fail, we don&#39;t run the second pass.
+</span><span class="c1"></span>	<span class="c1">// We consider only equal or higher priority pods in the first pass, because
+</span><span class="c1"></span>	<span class="c1">// those are the current &#34;pod&#34; must yield to them and not take a space opened
+</span><span class="c1"></span>	<span class="c1">// for running them. It is ok if the current &#34;pod&#34; take resources freed for
+</span><span class="c1"></span>	<span class="c1">// lower priority pods.
+</span><span class="c1"></span>	<span class="c1">// Requiring that the new pod is schedulable in both circumstances ensures that
+</span><span class="c1"></span>	<span class="c1">// we are making a conservative decision: filters like resources and inter-pod
+</span><span class="c1"></span>	<span class="c1">// anti-affinity are more likely to fail when the nominated pods are treated
+</span><span class="c1"></span>	<span class="c1">// as running, while filters like pod affinity are more likely to fail when
+</span><span class="c1"></span>	<span class="c1">// the nominated pods are treated as not running. We can&#39;t just assume the
+</span><span class="c1"></span>	<span class="c1">// nominated pods are running because they are not running right now and in fact,
+</span><span class="c1"></span>	<span class="c1">// they may end up getting scheduled to a different node.
+</span><span class="c1"></span>	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">2</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+		<span class="nx">stateToUse</span> <span class="o">:=</span> <span class="nx">state</span>
+		<span class="nx">nodeInfoToUse</span> <span class="o">:=</span> <span class="nx">info</span>
+		<span class="k">if</span> <span class="nx">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="kd">var</span> <span class="nx">err</span> <span class="kt">error</span>
+			<span class="nx">podsAdded</span><span class="p">,</span> <span class="nx">stateToUse</span><span class="p">,</span> <span class="nx">nodeInfoToUse</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">g</span><span class="p">.</span><span class="nf">addNominatedPods</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">prof</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">info</span><span class="p">)</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+			<span class="p">}</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">!</span><span class="nx">podsAdded</span> <span class="o">||</span> <span class="p">!</span><span class="nx">status</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+			<span class="k">break</span>
+		<span class="p">}</span>
+
+		<span class="nx">statusMap</span> <span class="o">:=</span> <span class="nx">prof</span><span class="p">.</span><span class="nf">RunFilterPlugins</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">stateToUse</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeInfoToUse</span><span class="p">)</span>
+		<span class="nx">status</span> <span class="p">=</span> <span class="nx">statusMap</span><span class="p">.</span><span class="nf">Merge</span><span class="p">()</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">status</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="o">&amp;&amp;</span> <span class="p">!</span><span class="nx">status</span><span class="p">.</span><span class="nf">IsUnschedulable</span><span class="p">()</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">status</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nf">AsError</span><span class="p">()</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nx">status</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">(),</span> <span class="nx">status</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>addNominatedPods</code>中，会将node上的nominatedPod列举出来，并选出比将要调度的pod Priority相等或者更高的pod，然后再执行<code>RunPreFilterExtensionAddPod</code>，如果所有的结果都为<code>true</code>，则返回<code>true</code>。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">addNominatedPods</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">prof</span> <span class="o">*</span><span class="nx">profile</span><span class="p">.</span><span class="nx">Profile</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">state</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span> <span class="nx">nodeInfo</span> <span class="o">*</span><span class="nx">schedulernodeinfo</span><span class="p">.</span><span class="nx">NodeInfo</span><span class="p">)</span> <span class="p">(</span><span class="kt">bool</span><span class="p">,</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span> <span class="o">*</span><span class="nx">schedulernodeinfo</span><span class="p">.</span><span class="nx">NodeInfo</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">g</span><span class="p">.</span><span class="nx">schedulingQueue</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">nodeInfo</span> <span class="o">==</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">nodeInfo</span><span class="p">.</span><span class="nf">Node</span><span class="p">()</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="c1">// This may happen only in tests.
+</span><span class="c1"></span>		<span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">nodeInfo</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="nx">nominatedPods</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nx">schedulingQueue</span><span class="p">.</span><span class="nf">NominatedPodsForNode</span><span class="p">(</span><span class="nx">nodeInfo</span><span class="p">.</span><span class="nf">Node</span><span class="p">().</span><span class="nx">Name</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nominatedPods</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">nodeInfo</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="nx">nodeInfoOut</span> <span class="o">:=</span> <span class="nx">nodeInfo</span><span class="p">.</span><span class="nf">Clone</span><span class="p">()</span>
+	<span class="nx">stateOut</span> <span class="o">:=</span> <span class="nx">state</span><span class="p">.</span><span class="nf">Clone</span><span class="p">()</span>
+	<span class="nx">podsAdded</span> <span class="o">:=</span> <span class="kc">false</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">p</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">nominatedPods</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">podutil</span><span class="p">.</span><span class="nf">GetPodPriority</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="nx">podutil</span><span class="p">.</span><span class="nf">GetPodPriority</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="nx">p</span><span class="p">.</span><span class="nx">UID</span> <span class="o">!=</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">UID</span> <span class="p">{</span>
+			<span class="nx">nodeInfoOut</span><span class="p">.</span><span class="nf">AddPod</span><span class="p">(</span><span class="nx">p</span><span class="p">)</span>
+			<span class="nx">status</span> <span class="o">:=</span> <span class="nx">prof</span><span class="p">.</span><span class="nf">RunPreFilterExtensionAddPod</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">stateOut</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">p</span><span class="p">,</span> <span class="nx">nodeInfoOut</span><span class="p">)</span>
+			<span class="k">if</span> <span class="p">!</span><span class="nx">status</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">false</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">nodeInfo</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nf">AsError</span><span class="p">()</span>
+			<span class="p">}</span>
+			<span class="nx">podsAdded</span> <span class="p">=</span> <span class="kc">true</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">podsAdded</span><span class="p">,</span> <span class="nx">stateOut</span><span class="p">,</span> <span class="nx">nodeInfoOut</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>针对<code>prioritizeNodes</code>再做详细分析，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span><span class="lnt">50
+</span><span class="lnt">51
+</span><span class="lnt">52
+</span><span class="lnt">53
+</span><span class="lnt">54
+</span><span class="lnt">55
+</span><span class="lnt">56
+</span><span class="lnt">57
+</span><span class="lnt">58
+</span><span class="lnt">59
+</span><span class="lnt">60
+</span><span class="lnt">61
+</span><span class="lnt">62
+</span><span class="lnt">63
+</span><span class="lnt">64
+</span><span class="lnt">65
+</span><span class="lnt">66
+</span><span class="lnt">67
+</span><span class="lnt">68
+</span><span class="lnt">69
+</span><span class="lnt">70
+</span><span class="lnt">71
+</span><span class="lnt">72
+</span><span class="lnt">73
+</span><span class="lnt">74
+</span><span class="lnt">75
+</span><span class="lnt">76
+</span><span class="lnt">77
+</span><span class="lnt">78
+</span><span class="lnt">79
+</span><span class="lnt">80
+</span><span class="lnt">81
+</span><span class="lnt">82
+</span><span class="lnt">83
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">prioritizeNodes</span><span class="p">(</span>
+	<span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span>
+	<span class="nx">prof</span> <span class="o">*</span><span class="nx">profile</span><span class="p">.</span><span class="nx">Profile</span><span class="p">,</span>
+	<span class="nx">state</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span>
+	<span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span>
+	<span class="nx">nodes</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">,</span>
+<span class="p">)</span> <span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScoreList</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="c1">// If no priority configs are provided, then all nodes will have a score of one.
+</span><span class="c1"></span>	<span class="c1">// This is required to generate the priority list in the required format
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="p">!</span><span class="nx">prof</span><span class="p">.</span><span class="nf">HasScorePlugins</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">result</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScoreList</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nodes</span><span class="p">))</span>
+		<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">nodes</span> <span class="p">{</span>
+			<span class="nx">result</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">result</span><span class="p">,</span> <span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScore</span><span class="p">{</span>
+				<span class="nx">Name</span><span class="p">:</span>  <span class="nx">nodes</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Name</span><span class="p">,</span>
+				<span class="nx">Score</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+			<span class="p">})</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Run the Score plugins.
+</span><span class="c1"></span>	<span class="nx">scoresMap</span><span class="p">,</span> <span class="nx">scoreStatus</span> <span class="o">:=</span> <span class="nx">prof</span><span class="p">.</span><span class="nf">RunScorePlugins</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">nodes</span><span class="p">)</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">scoreStatus</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScoreList</span><span class="p">{},</span> <span class="nx">scoreStatus</span><span class="p">.</span><span class="nf">AsError</span><span class="p">()</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Summarize all scores.
+</span><span class="c1"></span>	<span class="nx">result</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScoreList</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nodes</span><span class="p">))</span>
+
+	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">nodes</span> <span class="p">{</span>
+		<span class="nx">result</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">result</span><span class="p">,</span> <span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScore</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="nx">nodes</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">Score</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+		<span class="k">for</span> <span class="nx">j</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">scoresMap</span> <span class="p">{</span>
+			<span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span> <span class="o">+=</span> <span class="nx">scoresMap</span><span class="p">[</span><span class="nx">j</span><span class="p">][</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">nodes</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="kd">var</span> <span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+		<span class="kd">var</span> <span class="nx">wg</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>
+		<span class="nx">combinedScores</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">int64</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nodes</span><span class="p">))</span>
+		<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span> <span class="p">{</span>
+			<span class="k">if</span> <span class="p">!</span><span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nf">IsInterested</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span> <span class="p">{</span>
+				<span class="k">continue</span>
+			<span class="p">}</span>
+			<span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+			<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="nx">extIndex</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+				<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerGoroutines</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;prioritizing_extender&#34;</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+				<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+					<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerGoroutines</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;prioritizing_extender&#34;</span><span class="p">).</span><span class="nf">Dec</span><span class="p">()</span>
+					<span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+				<span class="p">}()</span>
+				<span class="nx">prioritizedList</span><span class="p">,</span> <span class="nx">weight</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">extIndex</span><span class="p">].</span><span class="nf">Prioritize</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">nodes</span><span class="p">)</span>
+				<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+					<span class="c1">// Prioritization errors from extender can be ignored, let k8s/other extenders determine the priorities
+</span><span class="c1"></span>					<span class="k">return</span>
+				<span class="p">}</span>
+				<span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+				<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="o">*</span><span class="nx">prioritizedList</span> <span class="p">{</span>
+					<span class="nx">host</span><span class="p">,</span> <span class="nx">score</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">prioritizedList</span><span class="p">)[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Host</span><span class="p">,</span> <span class="p">(</span><span class="o">*</span><span class="nx">prioritizedList</span><span class="p">)[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span>
+					<span class="k">if</span> <span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="p">{</span>
+						<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%v -&gt; %v: %v, Score: (%d)&#34;</span><span class="p">,</span> <span class="nx">util</span><span class="p">.</span><span class="nf">GetPodFullName</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">host</span><span class="p">,</span> <span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">extIndex</span><span class="p">].</span><span class="nf">Name</span><span class="p">(),</span> <span class="nx">score</span><span class="p">)</span>
+					<span class="p">}</span>
+					<span class="nx">combinedScores</span><span class="p">[</span><span class="nx">host</span><span class="p">]</span> <span class="o">+=</span> <span class="nx">score</span> <span class="o">*</span> <span class="nx">weight</span>
+				<span class="p">}</span>
+				<span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+			<span class="p">}(</span><span class="nx">i</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="c1">// wait for all go routines to finish
+</span><span class="c1"></span>		<span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+		<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">result</span> <span class="p">{</span>
+			<span class="c1">// MaxExtenderPriority may diverge from the max priority used in the scheduler and defined by MaxNodeScore,
+</span><span class="c1"></span>			<span class="c1">// therefore we need to scale the score returned by extenders to the score range used by the scheduler.
+</span><span class="c1"></span>			<span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span> <span class="o">+=</span> <span class="nx">combinedScores</span><span class="p">[</span><span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Name</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">MaxNodeScore</span> <span class="o">/</span> <span class="nx">extenderv1</span><span class="p">.</span><span class="nx">MaxExtenderPriority</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">if</span> <span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">result</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Host %s =&gt; Score %d&#34;</span><span class="p">,</span> <span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">result</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>RunScorePlugins</code>针对每种plugins建立一个<code>map[string]NodeScoreList</code>来存储score的值。然后针对每个node单独计算每个plugin的得分。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">workqueue</span><span class="p">.</span><span class="nf">ParallelizeUntil</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nodes</span><span class="p">),</span> <span class="kd">func</span><span class="p">(</span><span class="nx">index</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">pl</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">scorePlugins</span> <span class="p">{</span>
+			<span class="nx">nodeName</span> <span class="o">:=</span> <span class="nx">nodes</span><span class="p">[</span><span class="nx">index</span><span class="p">].</span><span class="nx">Name</span>
+			<span class="nx">s</span><span class="p">,</span> <span class="nx">status</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nf">runScorePlugin</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">pl</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">)</span>
+			<span class="k">if</span> <span class="p">!</span><span class="nx">status</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+				<span class="nx">errCh</span><span class="p">.</span><span class="nf">SendErrorWithCancel</span><span class="p">(</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">status</span><span class="p">.</span><span class="nf">Message</span><span class="p">()),</span> <span class="nx">cancel</span><span class="p">)</span>
+				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="nx">pluginToNodeScores</span><span class="p">[</span><span class="nx">pl</span><span class="p">.</span><span class="nf">Name</span><span class="p">()][</span><span class="nx">index</span><span class="p">]</span> <span class="p">=</span> <span class="nx">NodeScore</span><span class="p">{</span>
+				<span class="nx">Name</span><span class="p">:</span>  <span class="nx">nodeName</span><span class="p">,</span>
+				<span class="nx">Score</span><span class="p">:</span> <span class="nb">int64</span><span class="p">(</span><span class="nx">s</span><span class="p">),</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">})</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>通过上面的<code>score</code>计算出所有node的所有plugin的得分情况，接下来将通过<code>NormalizeScore</code>统一所有的得分情况。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">workqueue</span><span class="p">.</span><span class="nf">ParallelizeUntil</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">scorePlugins</span><span class="p">),</span> <span class="kd">func</span><span class="p">(</span><span class="nx">index</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">pl</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">scorePlugins</span><span class="p">[</span><span class="nx">index</span><span class="p">]</span>
+	<span class="nx">nodeScoreList</span> <span class="o">:=</span> <span class="nx">pluginToNodeScores</span><span class="p">[</span><span class="nx">pl</span><span class="p">.</span><span class="nf">Name</span><span class="p">()]</span>
+	<span class="k">if</span> <span class="nx">pl</span><span class="p">.</span><span class="nf">ScoreExtensions</span><span class="p">()</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+	<span class="nx">status</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nf">runScoreExtension</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">pl</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeScoreList</span><span class="p">)</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">status</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">err</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;normalize score plugin %q failed with error %v&#34;</span><span class="p">,</span> <span class="nx">pl</span><span class="p">.</span><span class="nf">Name</span><span class="p">(),</span> <span class="nx">status</span><span class="p">.</span><span class="nf">Message</span><span class="p">())</span>
+		<span class="nx">errCh</span><span class="p">.</span><span class="nf">SendErrorWithCancel</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">cancel</span><span class="p">)</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+<span class="p">})</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在上面归一化分数之后（分数在0-100之间），再把各个plugin的每个节点的得分乘以权重算出加权得分。<br>
+通过上面的计算之后会将一个节点的所有plugin的得分都加起来，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">result</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScoreList</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nodes</span><span class="p">))</span>
+
+<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">nodes</span> <span class="p">{</span>
+	<span class="nx">result</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">result</span><span class="p">,</span> <span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScore</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span> <span class="nx">nodes</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">Score</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+	<span class="k">for</span> <span class="nx">j</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">scoresMap</span> <span class="p">{</span>
+		<span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span> <span class="o">+=</span> <span class="nx">scoresMap</span><span class="p">[</span><span class="nx">j</span><span class="p">][</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>最后会计算通过<code>extenders</code>方式扩展的调度方法。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nx">nodes</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+	<span class="kd">var</span> <span class="nx">mu</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">Mutex</span>
+	<span class="kd">var</span> <span class="nx">wg</span> <span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span>
+	<span class="nx">combinedScores</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">int64</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nodes</span><span class="p">))</span>
+	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nf">IsInterested</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span> <span class="p">{</span>
+			<span class="k">continue</span>
+		<span class="p">}</span>
+		<span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+		<span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="nx">extIndex</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+			<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerGoroutines</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;prioritizing_extender&#34;</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+			<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+				<span class="nx">metrics</span><span class="p">.</span><span class="nx">SchedulerGoroutines</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;prioritizing_extender&#34;</span><span class="p">).</span><span class="nf">Dec</span><span class="p">()</span>
+				<span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span>
+			<span class="p">}()</span>
+			<span class="nx">prioritizedList</span><span class="p">,</span> <span class="nx">weight</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">extIndex</span><span class="p">].</span><span class="nf">Prioritize</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">nodes</span><span class="p">)</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="c1">// Prioritization errors from extender can be ignored, let k8s/other extenders determine the priorities
+</span><span class="c1"></span>				<span class="k">return</span>
+			<span class="p">}</span>
+			<span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+			<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="o">*</span><span class="nx">prioritizedList</span> <span class="p">{</span>
+				<span class="nx">host</span><span class="p">,</span> <span class="nx">score</span> <span class="o">:=</span> <span class="p">(</span><span class="o">*</span><span class="nx">prioritizedList</span><span class="p">)[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Host</span><span class="p">,</span> <span class="p">(</span><span class="o">*</span><span class="nx">prioritizedList</span><span class="p">)[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span>
+				<span class="k">if</span> <span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="p">{</span>
+					<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;%v -&gt; %v: %v, Score: (%d)&#34;</span><span class="p">,</span> <span class="nx">util</span><span class="p">.</span><span class="nf">GetPodFullName</span><span class="p">(</span><span class="nx">pod</span><span class="p">),</span> <span class="nx">host</span><span class="p">,</span> <span class="nx">g</span><span class="p">.</span><span class="nx">extenders</span><span class="p">[</span><span class="nx">extIndex</span><span class="p">].</span><span class="nf">Name</span><span class="p">(),</span> <span class="nx">score</span><span class="p">)</span>
+				<span class="p">}</span>
+				<span class="nx">combinedScores</span><span class="p">[</span><span class="nx">host</span><span class="p">]</span> <span class="o">+=</span> <span class="nx">score</span> <span class="o">*</span> <span class="nx">weight</span>
+			<span class="p">}</span>
+			<span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+		<span class="p">}(</span><span class="nx">i</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="c1">// wait for all go routines to finish
+</span><span class="c1"></span>	<span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span>
+	<span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">result</span> <span class="p">{</span>
+		<span class="c1">// MaxExtenderPriority may diverge from the max priority used in the scheduler and defined by MaxNodeScore,
+</span><span class="c1"></span>		<span class="c1">// therefore we need to scale the score returned by extenders to the score range used by the scheduler.
+</span><span class="c1"></span>		<span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Score</span> <span class="o">+=</span> <span class="nx">combinedScores</span><span class="p">[</span><span class="nx">result</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">Name</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">MaxNodeScore</span> <span class="o">/</span> <span class="nx">extenderv1</span><span class="p">.</span><span class="nx">MaxExtenderPriority</span><span class="p">)</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>把plugin的score和extender两种方式的得分相加然后返回，到此调度节点就结束了，接下来就是从上面的结果中选择一个得分最高的节点作为调度节点。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">g</span> <span class="o">*</span><span class="nx">genericScheduler</span><span class="p">)</span> <span class="nf">selectHost</span><span class="p">(</span><span class="nx">nodeScoreList</span> <span class="nx">framework</span><span class="p">.</span><span class="nx">NodeScoreList</span><span class="p">)</span> <span class="p">(</span><span class="kt">string</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">nodeScoreList</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;empty priorityList&#34;</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="nx">maxScore</span> <span class="o">:=</span> <span class="nx">nodeScoreList</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Score</span>
+	<span class="nx">selected</span> <span class="o">:=</span> <span class="nx">nodeScoreList</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Name</span>
+	<span class="nx">cntOfMaxScore</span> <span class="o">:=</span> <span class="mi">1</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ns</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">nodeScoreList</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">ns</span><span class="p">.</span><span class="nx">Score</span> <span class="p">&gt;</span> <span class="nx">maxScore</span> <span class="p">{</span>
+			<span class="nx">maxScore</span> <span class="p">=</span> <span class="nx">ns</span><span class="p">.</span><span class="nx">Score</span>
+			<span class="nx">selected</span> <span class="p">=</span> <span class="nx">ns</span><span class="p">.</span><span class="nx">Name</span>
+			<span class="nx">cntOfMaxScore</span> <span class="p">=</span> <span class="mi">1</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">ns</span><span class="p">.</span><span class="nx">Score</span> <span class="o">==</span> <span class="nx">maxScore</span> <span class="p">{</span>
+			<span class="nx">cntOfMaxScore</span><span class="o">++</span>
+			<span class="k">if</span> <span class="nx">rand</span><span class="p">.</span><span class="nf">Intn</span><span class="p">(</span><span class="nx">cntOfMaxScore</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+				<span class="c1">// Replace the candidate with probability of 1/cntOfMaxScore
+</span><span class="c1"></span>				<span class="nx">selected</span> <span class="p">=</span> <span class="nx">ns</span><span class="p">.</span><span class="nx">Name</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="nx">selected</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>这里针对<code>Filter</code>和<code>Score</code>这些阶段画了一个流程图，可以进行参考；
+<figure>
+    <img src="../images/%e8%b0%83%e5%ba%a6%e9%a2%84%e9%80%89%e5%92%8c%e4%bc%98%e9%80%89.png"/> 
+</figure>
+</p>
+<h2 id="总结">总结</h2>
+<p>到这里预选和优选阶段基本已经说完了，后面的文章将会对其他部分进行分析。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-10-03 18:03
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/kube-scheduler/">kube-scheduler</a>
+          </div>
+      <nav class="post-nav">
+        <a class="prev" href="/post/kube-scheduler-%E4%BA%8C/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">[Kubernetes] kube-scheduler源码分析(二)</span>
+            <span class="prev-text nav-mobile">上一篇</span>
+          </a>
+        <a class="next" href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/">
+            <span class="next-text nav-default">[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="756495135@qq.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>

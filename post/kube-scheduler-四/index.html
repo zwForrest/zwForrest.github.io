@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] kube-scheduler源码分析(四) - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="这篇文章将单独分析调度过程中关于volumeBinding插件的内容，这里会涉及到Filter的逻辑，并且这部分结果在调度的assume阶段" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/kube-scheduler-%E5%9B%9B/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] kube-scheduler源码分析(四)" />
+<meta property="og:description" content="这篇文章将单独分析调度过程中关于volumeBinding插件的内容，这里会涉及到Filter的逻辑，并且这部分结果在调度的assume阶段" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/kube-scheduler-%E5%9B%9B/" />
+<meta property="article:published_time" content="2020-10-09T18:03:56+08:00" />
+<meta property="article:modified_time" content="2020-10-09T18:03:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] kube-scheduler源码分析(四)">
+<meta itemprop="description" content="这篇文章将单独分析调度过程中关于volumeBinding插件的内容，这里会涉及到Filter的逻辑，并且这部分结果在调度的assume阶段">
+<meta itemprop="datePublished" content="2020-10-09T18:03:56+08:00" />
+<meta itemprop="dateModified" content="2020-10-09T18:03:56+08:00" />
+<meta itemprop="wordCount" content="2125">
+
+
+
+<meta itemprop="keywords" content="kubernetes,kube-scheduler," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] kube-scheduler源码分析(四)"/>
+<meta name="twitter:description" content="这篇文章将单独分析调度过程中关于volumeBinding插件的内容，这里会涉及到Filter的逻辑，并且这部分结果在调度的assume阶段"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] kube-scheduler源码分析(四)</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-10-09 18:03 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 2125 字 </span>
+          <span class="more-meta"> 预计阅读 5 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <p>这篇文章将单独分析调度过程中关于volumeBinding插件的内容，这里会涉及到Filter的逻辑，并且这部分结果在调度的assume阶段也会用到。接下来直接进入主题。</p>
+<p>先看<code>FindPodVolumes</code>函数，在这里会过滤pod和node的信息，检查pod和node的volume绑定关系，先直接上代码，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">  1
+</span><span class="lnt">  2
+</span><span class="lnt">  3
+</span><span class="lnt">  4
+</span><span class="lnt">  5
+</span><span class="lnt">  6
+</span><span class="lnt">  7
+</span><span class="lnt">  8
+</span><span class="lnt">  9
+</span><span class="lnt"> 10
+</span><span class="lnt"> 11
+</span><span class="lnt"> 12
+</span><span class="lnt"> 13
+</span><span class="lnt"> 14
+</span><span class="lnt"> 15
+</span><span class="lnt"> 16
+</span><span class="lnt"> 17
+</span><span class="lnt"> 18
+</span><span class="lnt"> 19
+</span><span class="lnt"> 20
+</span><span class="lnt"> 21
+</span><span class="lnt"> 22
+</span><span class="lnt"> 23
+</span><span class="lnt"> 24
+</span><span class="lnt"> 25
+</span><span class="lnt"> 26
+</span><span class="lnt"> 27
+</span><span class="lnt"> 28
+</span><span class="lnt"> 29
+</span><span class="lnt"> 30
+</span><span class="lnt"> 31
+</span><span class="lnt"> 32
+</span><span class="lnt"> 33
+</span><span class="lnt"> 34
+</span><span class="lnt"> 35
+</span><span class="lnt"> 36
+</span><span class="lnt"> 37
+</span><span class="lnt"> 38
+</span><span class="lnt"> 39
+</span><span class="lnt"> 40
+</span><span class="lnt"> 41
+</span><span class="lnt"> 42
+</span><span class="lnt"> 43
+</span><span class="lnt"> 44
+</span><span class="lnt"> 45
+</span><span class="lnt"> 46
+</span><span class="lnt"> 47
+</span><span class="lnt"> 48
+</span><span class="lnt"> 49
+</span><span class="lnt"> 50
+</span><span class="lnt"> 51
+</span><span class="lnt"> 52
+</span><span class="lnt"> 53
+</span><span class="lnt"> 54
+</span><span class="lnt"> 55
+</span><span class="lnt"> 56
+</span><span class="lnt"> 57
+</span><span class="lnt"> 58
+</span><span class="lnt"> 59
+</span><span class="lnt"> 60
+</span><span class="lnt"> 61
+</span><span class="lnt"> 62
+</span><span class="lnt"> 63
+</span><span class="lnt"> 64
+</span><span class="lnt"> 65
+</span><span class="lnt"> 66
+</span><span class="lnt"> 67
+</span><span class="lnt"> 68
+</span><span class="lnt"> 69
+</span><span class="lnt"> 70
+</span><span class="lnt"> 71
+</span><span class="lnt"> 72
+</span><span class="lnt"> 73
+</span><span class="lnt"> 74
+</span><span class="lnt"> 75
+</span><span class="lnt"> 76
+</span><span class="lnt"> 77
+</span><span class="lnt"> 78
+</span><span class="lnt"> 79
+</span><span class="lnt"> 80
+</span><span class="lnt"> 81
+</span><span class="lnt"> 82
+</span><span class="lnt"> 83
+</span><span class="lnt"> 84
+</span><span class="lnt"> 85
+</span><span class="lnt"> 86
+</span><span class="lnt"> 87
+</span><span class="lnt"> 88
+</span><span class="lnt"> 89
+</span><span class="lnt"> 90
+</span><span class="lnt"> 91
+</span><span class="lnt"> 92
+</span><span class="lnt"> 93
+</span><span class="lnt"> 94
+</span><span class="lnt"> 95
+</span><span class="lnt"> 96
+</span><span class="lnt"> 97
+</span><span class="lnt"> 98
+</span><span class="lnt"> 99
+</span><span class="lnt">100
+</span><span class="lnt">101
+</span><span class="lnt">102
+</span><span class="lnt">103
+</span><span class="lnt">104
+</span><span class="lnt">105
+</span><span class="lnt">106
+</span><span class="lnt">107
+</span><span class="lnt">108
+</span><span class="lnt">109
+</span><span class="lnt">110
+</span><span class="lnt">111
+</span><span class="lnt">112
+</span><span class="lnt">113
+</span><span class="lnt">114
+</span><span class="lnt">115
+</span><span class="lnt">116
+</span><span class="lnt">117
+</span><span class="lnt">118
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">b</span> <span class="o">*</span><span class="nx">volumeBinder</span><span class="p">)</span> <span class="nf">FindPodVolumes</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">node</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Node</span><span class="p">)</span> <span class="p">(</span><span class="nx">reasons</span> <span class="nx">ConflictReasons</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">podName</span> <span class="o">:=</span> <span class="nf">getPodName</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+
+	<span class="c1">// Warning: Below log needs high verbosity as it can be printed several times (#60933).
+</span><span class="c1"></span>	<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">5</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;FindPodVolumes for pod %q, node %q&#34;</span><span class="p">,</span> <span class="nx">podName</span><span class="p">,</span> <span class="nx">node</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+
+	<span class="c1">// Initialize to true for pods that don&#39;t have volumes. These
+</span><span class="c1"></span>	<span class="c1">// booleans get translated into reason strings when the function
+</span><span class="c1"></span>	<span class="c1">// returns without an error.
+</span><span class="c1"></span>	<span class="nx">unboundVolumesSatisfied</span> <span class="o">:=</span> <span class="kc">true</span>
+	<span class="nx">boundVolumesSatisfied</span> <span class="o">:=</span> <span class="kc">true</span>
+	<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">boundVolumesSatisfied</span> <span class="p">{</span>
+			<span class="nx">reasons</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">reasons</span><span class="p">,</span> <span class="nx">ErrReasonNodeConflict</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">unboundVolumesSatisfied</span> <span class="p">{</span>
+			<span class="nx">reasons</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">reasons</span><span class="p">,</span> <span class="nx">ErrReasonBindConflict</span><span class="p">)</span>
+		<span class="p">}</span>
+	<span class="p">}()</span>
+
+	<span class="nx">start</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">metrics</span><span class="p">.</span><span class="nx">VolumeSchedulingStageLatency</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;predicate&#34;</span><span class="p">).</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">time</span><span class="p">.</span><span class="nf">Since</span><span class="p">(</span><span class="nx">start</span><span class="p">).</span><span class="nf">Seconds</span><span class="p">())</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">metrics</span><span class="p">.</span><span class="nx">VolumeSchedulingStageFailed</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;predicate&#34;</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+		<span class="p">}</span>
+	<span class="p">}()</span>
+
+	<span class="kd">var</span> <span class="p">(</span>
+		<span class="nx">matchedBindings</span>   <span class="p">[]</span><span class="o">*</span><span class="nx">bindingInfo</span>
+		<span class="nx">provisionedClaims</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">PersistentVolumeClaim</span>
+	<span class="p">)</span>
+	<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="c1">// We recreate bindings for each new schedule loop.
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">matchedBindings</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="nb">len</span><span class="p">(</span><span class="nx">provisionedClaims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="c1">// Clear cache if no claims to bind or provision for this node.
+</span><span class="c1"></span>			<span class="nx">b</span><span class="p">.</span><span class="nx">podBindingCache</span><span class="p">.</span><span class="nf">ClearBindings</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">node</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+			<span class="k">return</span>
+		<span class="p">}</span>
+		<span class="c1">// Although we do not distinguish nil from empty in this function, for
+</span><span class="c1"></span>		<span class="c1">// easier testing, we normalize empty to nil.
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">matchedBindings</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="nx">matchedBindings</span> <span class="p">=</span> <span class="kc">nil</span>
+		<span class="p">}</span>
+		<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">provisionedClaims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="nx">provisionedClaims</span> <span class="p">=</span> <span class="kc">nil</span>
+		<span class="p">}</span>
+		<span class="c1">// Mark cache with all matched and provisioned claims for this node
+</span><span class="c1"></span>    <span class="c1">//这里会更新podBindingCache，后面在调度的Assume阶段会用到
+</span><span class="c1"></span>		<span class="nx">b</span><span class="p">.</span><span class="nx">podBindingCache</span><span class="p">.</span><span class="nf">UpdateBindings</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">node</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">matchedBindings</span><span class="p">,</span> <span class="nx">provisionedClaims</span><span class="p">)</span>
+	<span class="p">}()</span>
+
+	<span class="c1">// The pod&#39;s volumes need to be processed in one call to avoid the race condition where
+</span><span class="c1"></span>	<span class="c1">// volumes can get bound/provisioned in between calls.
+</span><span class="c1"></span>  <span class="c1">// 这里返回的三个参数分别是：  已经绑定的pvc，需要延迟绑定还没有绑定的，不是延迟绑定的还没有绑定的
+</span><span class="c1"></span>	<span class="nx">boundClaims</span><span class="p">,</span> <span class="nx">claimsToBind</span><span class="p">,</span> <span class="nx">unboundClaimsImmediate</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">getPodVolumes</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Immediate claims should be bound
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">unboundClaimsImmediate</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;pod has unbound immediate PersistentVolumeClaims&#34;</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Check PV node affinity on bound volumes
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">boundClaims</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="nx">boundVolumesSatisfied</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">checkBoundClaims</span><span class="p">(</span><span class="nx">boundClaims</span><span class="p">,</span> <span class="nx">node</span><span class="p">,</span> <span class="nx">podName</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="c1">// Find matching volumes and node for unbound claims
+</span><span class="c1"></span>	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">claimsToBind</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="kd">var</span> <span class="p">(</span>
+			<span class="nx">claimsToFindMatching</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">PersistentVolumeClaim</span>
+			<span class="nx">claimsToProvision</span>    <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">PersistentVolumeClaim</span>
+		<span class="p">)</span>
+
+		<span class="c1">// Filter out claims to provision
+</span><span class="c1"></span>		<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">claim</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">claimsToBind</span> <span class="p">{</span>
+			<span class="k">if</span> <span class="nx">selectedNode</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">claim</span><span class="p">.</span><span class="nx">Annotations</span><span class="p">[</span><span class="nx">pvutil</span><span class="p">.</span><span class="nx">AnnSelectedNode</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+				<span class="k">if</span> <span class="nx">selectedNode</span> <span class="o">!=</span> <span class="nx">node</span><span class="p">.</span><span class="nx">Name</span> <span class="p">{</span>
+					<span class="c1">// Fast path, skip unmatched node.
+</span><span class="c1"></span>					<span class="nx">unboundVolumesSatisfied</span> <span class="p">=</span> <span class="kc">false</span>
+					<span class="k">return</span>
+				<span class="p">}</span>
+				<span class="nx">claimsToProvision</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">claimsToProvision</span><span class="p">,</span> <span class="nx">claim</span><span class="p">)</span>
+			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+				<span class="nx">claimsToFindMatching</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">claimsToFindMatching</span><span class="p">,</span> <span class="nx">claim</span><span class="p">)</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+
+		<span class="c1">// Find matching volumes
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">claimsToFindMatching</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="kd">var</span> <span class="nx">unboundClaims</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">PersistentVolumeClaim</span>
+			<span class="nx">unboundVolumesSatisfied</span><span class="p">,</span> <span class="nx">matchedBindings</span><span class="p">,</span> <span class="nx">unboundClaims</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">findMatchingVolumes</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">claimsToFindMatching</span><span class="p">,</span> <span class="nx">node</span><span class="p">)</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+			<span class="p">}</span>
+			<span class="nx">claimsToProvision</span> <span class="p">=</span> <span class="nb">append</span><span class="p">(</span><span class="nx">claimsToProvision</span><span class="p">,</span> <span class="nx">unboundClaims</span><span class="o">...</span><span class="p">)</span>
+		<span class="p">}</span>
+
+		<span class="c1">// Check for claims to provision
+</span><span class="c1"></span>		<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">claimsToProvision</span><span class="p">)</span> <span class="p">&gt;</span> <span class="mi">0</span> <span class="p">{</span>
+			<span class="nx">unboundVolumesSatisfied</span><span class="p">,</span> <span class="nx">provisionedClaims</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">b</span><span class="p">.</span><span class="nf">checkVolumeProvisions</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">claimsToProvision</span><span class="p">,</span> <span class="nx">node</span><span class="p">)</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在上面的函数中先会调用<code>getPodVolumes</code>分析处于各个阶段的volume，返回的结果分别是已经完成绑定的pvc，需要延迟绑定还没有绑定的pvc，不是延迟绑定的还没有绑定的pvc。</p>
+<ol>
+<li>针对第一种情况会再通过<code>checkBoundClaims</code>检测对应的pv是否符合调度策略，主要是通过<code>checkVolumeNodeAffinity</code>检测pv的NodeAffinity.Required.NodeSelectorTerms是否服务节点的标签，如果不符合则返回错误。</li>
+<li>第二种延迟绑定，这里会先检查pvc.Annotations中是否有key为<code>&quot;volume.kubernetes.io/selected-node&quot;</code>的值，如果有并和当前节点相同则会添加到<code>claimsToProvision</code>的slice，如果不存在这个key，则把这个这个pvc添加到<code>claimsToFindMatching</code>的slice。</li>
+<li>第三种不是延迟绑定，则直接返回错误。</li>
+</ol>
+<p>接下来会针对需要绑定的pvc去查找对应的pv，<code>FindMatchingVolume</code>会检查pvc对应的StorageClass下所有的volume是否有符合要求的pv，检查条件是：</p>
+<ol>
+<li>pv是否有对应pvc，如果有并不是当前的pvc则继续;</li>
+<li>检查pv容量是否小于pvc的容量,pv&gt;pvc的容量才行;</li>
+<li>检查pv和pvc的volumeMode是否相等，例如都是<code>Filesystem</code>类型；</li>
+<li>检查pv的DeletionTimestamp是否为空；</li>
+<li>检查pv的nodeAffinity是否符合node的labels；</li>
+<li>如果pv和pvc已经绑定好了并检查pv是否符合nodeAffinity；</li>
+<li>检查pv的状态，是否和pvc的selector匹配；</li>
+<li>检查pv和pvc的Mode是否一致，然后从所有符合条件的volume（pv)中选择容量最小的volume。</li>
+</ol>
+<p>上面检查完了pv和pvc的关联关系会将pvc分为<code>unboundClaims</code>不能找到对应的pv和<code>bindings</code>能正常绑定的pv两种，而且只有全部的pvc都能找到pv才是<code>foundMatchs</code>。到这里延时绑定中没有pv的问题也解决了，接下来还需要分析pvc有对应的<code>volume.kubernetes.io/selected-node</code>字段的pvc。<br>
+如果绑定了具体的node，则会通过<code>checkVolumeProvisions</code>函数检测node是否符合sc的拓扑需求。
+最后会通过<code>UpdateBindings</code>更新<code>podBindingCache</code>字段。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">podBindingCache</span><span class="p">)</span> <span class="nf">UpdateBindings</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">node</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">bindings</span> <span class="p">[]</span><span class="o">*</span><span class="nx">bindingInfo</span><span class="p">,</span> <span class="nx">pvcs</span> <span class="p">[]</span><span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">PersistentVolumeClaim</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">c</span><span class="p">.</span><span class="nx">rwMutex</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">c</span><span class="p">.</span><span class="nx">rwMutex</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+
+	<span class="nx">podName</span> <span class="o">:=</span> <span class="nf">getPodName</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="nx">decisions</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">bindingDecisions</span><span class="p">[</span><span class="nx">podName</span><span class="p">]</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+		<span class="nx">decisions</span> <span class="p">=</span> <span class="nx">nodeDecisions</span><span class="p">{}</span>
+		<span class="nx">c</span><span class="p">.</span><span class="nx">bindingDecisions</span><span class="p">[</span><span class="nx">podName</span><span class="p">]</span> <span class="p">=</span> <span class="nx">decisions</span>
+	<span class="p">}</span>
+	<span class="nx">decision</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">decisions</span><span class="p">[</span><span class="nx">node</span><span class="p">]</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">ok</span> <span class="p">{</span>
+		<span class="nx">decision</span> <span class="p">=</span> <span class="nx">nodeDecision</span><span class="p">{</span>
+			<span class="nx">bindings</span><span class="p">:</span>      <span class="nx">bindings</span><span class="p">,</span>
+			<span class="nx">provisionings</span><span class="p">:</span> <span class="nx">pvcs</span><span class="p">,</span>
+		<span class="p">}</span>
+		<span class="nx">metrics</span><span class="p">.</span><span class="nx">VolumeBindingRequestSchedulerBinderCache</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="s">&#34;add&#34;</span><span class="p">).</span><span class="nf">Inc</span><span class="p">()</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="nx">decision</span><span class="p">.</span><span class="nx">bindings</span> <span class="p">=</span> <span class="nx">bindings</span>
+		<span class="nx">decision</span><span class="p">.</span><span class="nx">provisionings</span> <span class="p">=</span> <span class="nx">pvcs</span>
+	<span class="p">}</span>
+	<span class="nx">decisions</span><span class="p">[</span><span class="nx">node</span><span class="p">]</span> <span class="p">=</span> <span class="nx">decision</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>更新完volumeBinder缓存，后面再调度的assume阶段会用到这些信息。到这里<code>volumeBinding</code>插件的Filter过程就分析完了。逻辑图大概如下图所示。<br>
+<figure>
+    <img src="../images/volumeBinding.png"/> 
+</figure>
+</p>
+<h2 id="总结">总结</h2>
+<p>到这里所有的调度基本都分析完了，这一篇主要是介绍pvc和pv之间的过滤流程，之前疑惑localpath类型的sc怎么做到定点调度的问题也能完全解释的通。针对调度的整个逻辑在这里做一个阅读记录，以便后续需要查到。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-10-09 18:03
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/kube-scheduler/">kube-scheduler</a>
+          </div>
+      <nav class="post-nav">
+        <a class="prev" href="/post/tcp/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">[计算机网络] TCP</span>
+            <span class="prev-text nav-mobile">上一篇</span>
+          </a>
+        <a class="next" href="/post/kube-scheduler-%E4%B8%89/">
+            <span class="next-text nav-default">[Kubernetes] kube-scheduler源码分析(三)</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="756495135@qq.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>

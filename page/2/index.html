@@ -45,7 +45,7 @@
 <meta property="og:description" content="Hugo theme even example site." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://zwForrest.github.io/" />
-<meta property="og:updated_time" content="2020-10-05T18:03:56+08:00" />
+<meta property="og:updated_time" content="2020-11-09T18:03:56+08:00" />
 <meta itemprop="name" content="Welcome to zForrest">
 <meta itemprop="description" content="Hugo theme even example site.">
 <meta name="twitter:card" content="summary"/>
@@ -117,6 +117,98 @@
           <section id="posts" class="posts">
     <article class="post">
   <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/">[Kubernetes] Kube-apiserver存储ETCD架构及源码分析</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2020-08-18 18:33 </span>
+      <div class="post-category">
+          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+          </div>
+        <span class="more-meta"> 约 2726 字 </span>
+        <span class="more-meta"> 预计阅读 6 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      架构分析 在Kubernetes中所有的数据都是存储在ETCD中，而只有kube-apiserver会和ETCD进行交互，其他组件都是通过ku
+    </div>
+    <div class="read-more">
+      <a href="/post/kube-apiserver%E5%AD%98%E5%82%A8etcd%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
+    <article class="post">
+  <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/">[Kubernetes] Kubelet之CRI和CNI调用分析</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2020-08-11 11:37 </span>
+      <div class="post-category">
+          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+          </div>
+        <span class="more-meta"> 约 5753 字 </span>
+        <span class="more-meta"> 预计阅读 12 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      架构 kubelet架构如图所示 默认docker模式的调用关系 源码分析 接下来从代码层面分析一下kubelet中CRI和CNI的逻辑关系。 首先在
+    </div>
+    <div class="read-more">
+      <a href="/post/kubelet%E4%B9%8Bcri%E5%92%8Ccni%E8%B0%83%E7%94%A8%E5%88%86%E6%9E%90/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
+    <article class="post">
+  <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/">[Kubernetes]Index结构分析</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2020-08-09 01:37 </span>
+      <div class="post-category">
+          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+          </div>
+        <span class="more-meta"> 约 1096 字 </span>
+        <span class="more-meta"> 预计阅读 3 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      Index结构 在这里Index存储接口的具体实现是cache。 1 2 3 4 5 6 7 8 type cache struct { // cacheStorage bears the burden of thread safety for the cache cacheStorage ThreadSafeStore // keyFunc is used to make the key for objects stored in and retrieved
+    </div>
+    <div class="read-more">
+      <a href="/post/index%E7%BB%93%E6%9E%84%E5%88%86%E6%9E%90/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
+    <article class="post">
+  <header class="post-header">
+    <h1 class="post-title"><a class="post-link" href="/post/informer/">[Kubernetes] Client-go分析</a></h1>
+    <div class="post-meta">
+      <span class="post-time"> 2020-08-08 12:40 </span>
+      <div class="post-category">
+          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+          </div>
+        <span class="more-meta"> 约 5258 字 </span>
+        <span class="more-meta"> 预计阅读 11 分钟 </span>
+    </div>
+  </header>
+  
+  <div class="post-content">
+    <div class="post-summary">
+      Client-go客户端 主要介绍四种Client RESTClient是最基础的Client，它将HTTP client封装成RESTful风格
+    </div>
+    <div class="read-more">
+      <a href="/post/informer/" class="read-more-link">阅读更多</a>
+    </div>
+  </div>
+</article>
+
+    <article class="post">
+  <header class="post-header">
     <h1 class="post-title"><a class="post-link" href="/post/clientset/">[kubernetes] Client</a></h1>
     <div class="post-meta">
       <span class="post-time"> 2020-08-01 01:37 </span>
@@ -138,100 +230,6 @@
   </div>
 </article>
 
-    <article class="post">
-  <header class="post-header">
-    <h1 class="post-title"><a class="post-link" href="/post/inplaceupdate/">[Kubernetes] pod原地升级</a></h1>
-    <div class="post-meta">
-      <span class="post-time"> 2020-06-10 12:40 </span>
-      <div class="post-category">
-          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
-          </div>
-        <span class="more-meta"> 约 1383 字 </span>
-        <span class="more-meta"> 预计阅读 3 分钟 </span>
-    </div>
-  </header>
-  
-  <div class="post-content">
-    <div class="post-summary">
-      <h2 id="kubelet原地升级实现">kubelet原地升级实现</h2>
-<p>在实际的业务需求中，有很多需要能够实现原地升级。只改变镜像名称而不改变其他的配置。在现有的deployment中无法做到，而在kubelet层面其实是能做到原地升级，此时可以自定义operator来实现原地升级。</p>
-    </div>
-    <div class="read-more">
-      <a href="/post/inplaceupdate/" class="read-more-link">阅读更多</a>
-    </div>
-  </div>
-</article>
-
-    <article class="post">
-  <header class="post-header">
-    <h1 class="post-title"><a class="post-link" href="/post/kubelet%E6%8E%A2%E6%B4%BB%E6%9C%BA%E5%88%B6%E5%92%8C%E7%8A%B6%E6%80%81%E7%AE%A1%E7%90%86/">[Kubernetes] kubelet探活机制及状态管理</a></h1>
-    <div class="post-meta">
-      <span class="post-time"> 2020-06-01 15:31 </span>
-      <div class="post-category">
-          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
-          </div>
-        <span class="more-meta"> 约 3709 字 </span>
-        <span class="more-meta"> 预计阅读 8 分钟 </span>
-    </div>
-  </header>
-  
-  <div class="post-content">
-    <div class="post-summary">
-      为了保证服务能够正常提供服务，k8s提供了容器健康检查和就需检查功能，目前支持TCP、Http、和命令三种方式， 这里将不会分析所有的流程，只
-    </div>
-    <div class="read-more">
-      <a href="/post/kubelet%E6%8E%A2%E6%B4%BB%E6%9C%BA%E5%88%B6%E5%92%8C%E7%8A%B6%E6%80%81%E7%AE%A1%E7%90%86/" class="read-more-link">阅读更多</a>
-    </div>
-  </div>
-</article>
-
-    <article class="post">
-  <header class="post-header">
-    <h1 class="post-title"><a class="post-link" href="/post/endpointcontroller%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/">[Kubernetes] EndpointController源码分析</a></h1>
-    <div class="post-meta">
-      <span class="post-time"> 2020-05-18 18:33 </span>
-      <div class="post-category">
-          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
-          </div>
-        <span class="more-meta"> 约 1937 字 </span>
-        <span class="more-meta"> 预计阅读 4 分钟 </span>
-    </div>
-  </header>
-  
-  <div class="post-content">
-    <div class="post-summary">
-      为了对接公司内部的4层负载均衡，我们决定自己写一套节点挂载控制器，然后先分析了现有的endpointController相关实现。具体如下。
-    </div>
-    <div class="read-more">
-      <a href="/post/endpointcontroller%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/" class="read-more-link">阅读更多</a>
-    </div>
-  </div>
-</article>
-
-    <article class="post">
-  <header class="post-header">
-    <h1 class="post-title"><a class="post-link" href="/post/leaderection/">[Kubernetes] Leaderection</a></h1>
-    <div class="post-meta">
-      <span class="post-time"> 2019-10-30 15:43 </span>
-      <div class="post-category">
-          <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
-          </div>
-        <span class="more-meta"> 约 352 字 </span>
-        <span class="more-meta"> 预计阅读 1 分钟 </span>
-    </div>
-  </header>
-  
-  <div class="post-content">
-    <div class="post-summary">
-      <h2 id="介绍">介绍</h2>
-<p>关于k8s的kube-scheduler和kube-controller-manager高可用部分，它们使用的选举机制和常用的基于中间件的方式不太一样，在k8s中是基于k8s资源来维护分布式锁。正常的情况下kube-scheduler和kube-controller-manager只有一个副本是处于正常的业务逻辑状态，其他的在一直获取锁，去竞争leader。如果因为某种原因现有的leader退出，或者获取锁失败，则会由其他副本竞争新的leader，并执行正常的业务逻辑。</p>
-    </div>
-    <div class="read-more">
-      <a href="/post/leaderection/" class="read-more-link">阅读更多</a>
-    </div>
-  </div>
-</article>
-
     </section>
   
   <nav class="pagination">
@@ -239,7 +237,10 @@
         <i class="iconfont icon-left"></i>
         <span class="prev-text">上一页</span>
       </a>
-    
+    <a class="next" href="/page/3/">
+        <span class="next-text">下一页</span>
+        <i class="iconfont icon-right"></i>
+      </a>
   </nav>
         </div>
         

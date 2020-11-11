@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] kube-scheduler源码分析(三) - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="前面分析完调度和抢占过程，接下来将分析后面的工作。在完成前面两个步骤之后，将会进行assumePod,reserve,permit,bind" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/kube-scheduler-%E4%B8%89/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] kube-scheduler源码分析(三)" />
+<meta property="og:description" content="前面分析完调度和抢占过程，接下来将分析后面的工作。在完成前面两个步骤之后，将会进行assumePod,reserve,permit,bind" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/kube-scheduler-%E4%B8%89/" />
+<meta property="article:published_time" content="2020-10-07T18:03:56+08:00" />
+<meta property="article:modified_time" content="2020-10-07T18:03:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] kube-scheduler源码分析(三)">
+<meta itemprop="description" content="前面分析完调度和抢占过程，接下来将分析后面的工作。在完成前面两个步骤之后，将会进行assumePod,reserve,permit,bind">
+<meta itemprop="datePublished" content="2020-10-07T18:03:56+08:00" />
+<meta itemprop="dateModified" content="2020-10-07T18:03:56+08:00" />
+<meta itemprop="wordCount" content="1820">
+
+
+
+<meta itemprop="keywords" content="kubernetes,kube-scheduler," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] kube-scheduler源码分析(三)"/>
+<meta name="twitter:description" content="前面分析完调度和抢占过程，接下来将分析后面的工作。在完成前面两个步骤之后，将会进行assumePod,reserve,permit,bind"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] kube-scheduler源码分析(三)</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2020-10-07 18:03 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 1820 字 </span>
+          <span class="more-meta"> 预计阅读 4 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#binding-cycle">Binding Cycle</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <p>前面分析完调度和抢占过程，接下来将分析后面的工作。在完成前面两个步骤之后，将会进行<code>assumePod</code>,<code>reserve</code>,<code>permit</code>,<code>bind</code>等操作。<br>
+首先检查pod绑定的volume是否完成绑定，</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">allBound</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">sched</span><span class="p">.</span><span class="nx">VolumeBinder</span><span class="p">.</span><span class="nf">AssumePodVolumes</span><span class="p">(</span><span class="nx">assumedPod</span><span class="p">,</span> <span class="nx">scheduleResult</span><span class="p">.</span><span class="nx">SuggestedHost</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">sched</span><span class="p">.</span><span class="nf">recordSchedulingFailure</span><span class="p">(</span><span class="nx">prof</span><span class="p">,</span> <span class="nx">assumedPodInfo</span><span class="p">,</span> <span class="nx">err</span><span class="p">,</span> <span class="nx">SchedulerError</span><span class="p">,</span>
+			<span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;AssumePodVolumes failed: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">))</span>
+		<span class="nx">metrics</span><span class="p">.</span><span class="nx">PodScheduleErrors</span><span class="p">.</span><span class="nf">Inc</span><span class="p">()</span>
+		<span class="k">return</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里会先检查所有的pvc是否都已经完成了binding及provision操作，然后通过<code>UpdateBinding</code>操作完成最后的更新。<br>
+然后进行<code>RunReservePlugins</code>和<code>assume</code>操作，在assume中，会先将<code>assumepod.Spec.NodeName</code>字段更新为当前Node更新SchedulerCache.AssumePod部分。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">cache</span> <span class="o">*</span><span class="nx">schedulerCache</span><span class="p">)</span> <span class="nf">AssumePod</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span> <span class="kt">error</span> <span class="p">{</span>
+	<span class="nx">key</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">schedulernodeinfo</span><span class="p">.</span><span class="nf">GetPodKey</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">err</span>
+	<span class="p">}</span>
+
+	<span class="nx">cache</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="nx">cache</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+	<span class="k">if</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">ok</span> <span class="o">:=</span> <span class="nx">cache</span><span class="p">.</span><span class="nx">podStates</span><span class="p">[</span><span class="nx">key</span><span class="p">];</span> <span class="nx">ok</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;pod %v is in the cache, so can&#39;t be assumed&#34;</span><span class="p">,</span> <span class="nx">key</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="nx">cache</span><span class="p">.</span><span class="nf">addPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">)</span>
+	<span class="nx">ps</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">podState</span><span class="p">{</span>
+		<span class="nx">pod</span><span class="p">:</span> <span class="nx">pod</span><span class="p">,</span>
+	<span class="p">}</span>
+	<span class="nx">cache</span><span class="p">.</span><span class="nx">podStates</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="nx">ps</span>
+	<span class="nx">cache</span><span class="p">.</span><span class="nx">assumedPods</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="p">=</span> <span class="kc">true</span>
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>然后删除<code>SchedulingQueue</code>中的assumePod。<br>
+执行<code>Permit</code>的plugin，在这里会有延迟绑定pod操作，coscheduling的相关实现就是在这个插件做文章。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">framework</span><span class="p">)</span> <span class="nf">RunPermitPlugins</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">state</span> <span class="o">*</span><span class="nx">CycleState</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">nodeName</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="nx">status</span> <span class="o">*</span><span class="nx">Status</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">startTime</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+	<span class="k">defer</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+		<span class="nx">metrics</span><span class="p">.</span><span class="nx">FrameworkExtensionPointDuration</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="nx">permit</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nf">Code</span><span class="p">().</span><span class="nf">String</span><span class="p">()).</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nf">SinceInSeconds</span><span class="p">(</span><span class="nx">startTime</span><span class="p">))</span>
+	<span class="p">}()</span>
+	<span class="nx">pluginsWaitTime</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span>
+	<span class="nx">statusCode</span> <span class="o">:=</span> <span class="nx">Success</span>
+	<span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">pl</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">f</span><span class="p">.</span><span class="nx">permitPlugins</span> <span class="p">{</span>
+		<span class="nx">status</span><span class="p">,</span> <span class="nx">timeout</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nf">runPermitPlugin</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span> <span class="nx">pl</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">pod</span><span class="p">,</span> <span class="nx">nodeName</span><span class="p">)</span>
+		<span class="k">if</span> <span class="p">!</span><span class="nx">status</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+			<span class="k">if</span> <span class="nx">status</span><span class="p">.</span><span class="nf">IsUnschedulable</span><span class="p">()</span> <span class="p">{</span>
+				<span class="nx">msg</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;rejected pod %q by permit plugin %q: %v&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">pl</span><span class="p">.</span><span class="nf">Name</span><span class="p">(),</span> <span class="nx">status</span><span class="p">.</span><span class="nf">Message</span><span class="p">())</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+				<span class="k">return</span> <span class="nf">NewStatus</span><span class="p">(</span><span class="nx">status</span><span class="p">.</span><span class="nf">Code</span><span class="p">(),</span> <span class="nx">msg</span><span class="p">)</span>
+			<span class="p">}</span>
+			<span class="k">if</span> <span class="nx">status</span><span class="p">.</span><span class="nf">Code</span><span class="p">()</span> <span class="o">==</span> <span class="nx">Wait</span> <span class="p">{</span>
+				<span class="c1">// Not allowed to be greater than maxTimeout.
+</span><span class="c1"></span>				<span class="k">if</span> <span class="nx">timeout</span> <span class="p">&gt;</span> <span class="nx">maxTimeout</span> <span class="p">{</span>
+					<span class="nx">timeout</span> <span class="p">=</span> <span class="nx">maxTimeout</span>
+				<span class="p">}</span>
+				<span class="nx">pluginsWaitTime</span><span class="p">[</span><span class="nx">pl</span><span class="p">.</span><span class="nf">Name</span><span class="p">()]</span> <span class="p">=</span> <span class="nx">timeout</span>
+				<span class="nx">statusCode</span> <span class="p">=</span> <span class="nx">Wait</span>
+			<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+				<span class="nx">msg</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;error while running %q permit plugin for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">pl</span><span class="p">.</span><span class="nf">Name</span><span class="p">(),</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">status</span><span class="p">.</span><span class="nf">Message</span><span class="p">())</span>
+				<span class="nx">klog</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+				<span class="k">return</span> <span class="nf">NewStatus</span><span class="p">(</span><span class="nx">Error</span><span class="p">,</span> <span class="nx">msg</span><span class="p">)</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">statusCode</span> <span class="o">==</span> <span class="nx">Wait</span> <span class="p">{</span>
+		<span class="nx">waitingPod</span> <span class="o">:=</span> <span class="nf">newWaitingPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">pluginsWaitTime</span><span class="p">)</span>
+		<span class="nx">f</span><span class="p">.</span><span class="nx">waitingPods</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="nx">waitingPod</span><span class="p">)</span>
+		<span class="nx">msg</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;one or more plugins asked to wait and no plugin rejected pod %q&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nf">NewStatus</span><span class="p">(</span><span class="nx">Wait</span><span class="p">,</span> <span class="nx">msg</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里会调用每个实现了<code>PermitPlugin</code>的插件，如果返回不是<code>Success</code>或<code>Wait</code>则表示异常。如果返回是<code>Wait</code>则会根据返回的时间去创建一个<code>pluginsWaitTime</code>，在这里记录每个插件需要等待的时间。然后将等待的pod添加到framework。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go">  <span class="k">if</span> <span class="nx">statusCode</span> <span class="o">==</span> <span class="nx">Wait</span> <span class="p">{</span>
+		<span class="nx">waitingPod</span> <span class="o">:=</span> <span class="nf">newWaitingPod</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">pluginsWaitTime</span><span class="p">)</span>
+		<span class="nx">f</span><span class="p">.</span><span class="nx">waitingPods</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="nx">waitingPod</span><span class="p">)</span>
+		<span class="nx">msg</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;one or more plugins asked to wait and no plugin rejected pod %q&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nf">NewStatus</span><span class="p">(</span><span class="nx">Wait</span><span class="p">,</span> <span class="nx">msg</span><span class="p">)</span>
+	<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go">  <span class="kd">func</span> <span class="nf">newWaitingPod</span><span class="p">(</span><span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">pluginsMaxWaitTime</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="o">*</span><span class="nx">waitingPod</span> <span class="p">{</span>
+  	<span class="nx">wp</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="nx">waitingPod</span><span class="p">{</span>
+  		<span class="nx">pod</span><span class="p">:</span> <span class="nx">pod</span><span class="p">,</span>
+  		<span class="c1">// Allow() and Reject() calls are non-blocking. This property is guaranteed
+</span><span class="c1"></span>  		<span class="c1">// by using non-blocking send to this channel. This channel has a buffer of size 1
+</span><span class="c1"></span>  		<span class="c1">// to ensure that non-blocking send will not be ignored - possible situation when
+</span><span class="c1"></span>  		<span class="c1">// receiving from this channel happens after non-blocking send.
+</span><span class="c1"></span>  		<span class="nx">s</span><span class="p">:</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="o">*</span><span class="nx">Status</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+  	<span class="p">}</span>
+
+  	<span class="nx">wp</span><span class="p">.</span><span class="nx">pendingPlugins</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">time</span><span class="p">.</span><span class="nx">Timer</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="nx">pluginsMaxWaitTime</span><span class="p">))</span>
+  	<span class="c1">// The time.AfterFunc calls wp.Reject which iterates through pendingPlugins map. Acquire the
+</span><span class="c1"></span>  	<span class="c1">// lock here so that time.AfterFunc can only execute after newWaitingPod finishes.
+</span><span class="c1"></span>  	<span class="nx">wp</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Lock</span><span class="p">()</span>
+  	<span class="k">defer</span> <span class="nx">wp</span><span class="p">.</span><span class="nx">mu</span><span class="p">.</span><span class="nf">Unlock</span><span class="p">()</span>
+    <span class="c1">//根据每个plugin的超时时间创建对应的超时拒绝函数
+</span><span class="c1"></span>  	<span class="k">for</span> <span class="nx">k</span><span class="p">,</span> <span class="nx">v</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">pluginsMaxWaitTime</span> <span class="p">{</span>
+  		<span class="nx">plugin</span><span class="p">,</span> <span class="nx">waitTime</span> <span class="o">:=</span> <span class="nx">k</span><span class="p">,</span> <span class="nx">v</span>
+  		<span class="nx">wp</span><span class="p">.</span><span class="nx">pendingPlugins</span><span class="p">[</span><span class="nx">plugin</span><span class="p">]</span> <span class="p">=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">AfterFunc</span><span class="p">(</span><span class="nx">waitTime</span><span class="p">,</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+  			<span class="nx">msg</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;rejected due to timeout after waiting %v at plugin %v&#34;</span><span class="p">,</span>
+  				<span class="nx">waitTime</span><span class="p">,</span> <span class="nx">plugin</span><span class="p">)</span>
+  			<span class="nx">wp</span><span class="p">.</span><span class="nf">Reject</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+  		<span class="p">})</span>
+  	<span class="p">}</span>
+
+  	<span class="k">return</span> <span class="nx">wp</span>
+  <span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>最后会将waitingPod添加到framework的WaitingPod。如果前面的结果返回异常则会将assumePod从cache中删掉，并执行<code>UnreservePlugins</code>。</p>
+<h2 id="binding-cycle">Binding Cycle</h2>
+<p>这一部分的代码量比较少，直接启动一个协程去执行整个操作过程。这里会先执行一个阻塞函数<code>prof.WaitOnPermit</code>，在这里会一直等待waitingPod的返回状态。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">f</span> <span class="o">*</span><span class="nx">framework</span><span class="p">)</span> <span class="nf">WaitOnPermit</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">)</span> <span class="p">(</span><span class="nx">status</span> <span class="o">*</span><span class="nx">Status</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">waitingPod</span> <span class="o">:=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">waitingPods</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nx">pod</span><span class="p">.</span><span class="nx">UID</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">waitingPod</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="k">defer</span> <span class="nx">f</span><span class="p">.</span><span class="nx">waitingPods</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="nx">pod</span><span class="p">.</span><span class="nx">UID</span><span class="p">)</span>
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;pod %q waiting on permit&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+
+	<span class="nx">startTime</span> <span class="o">:=</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">()</span>
+  <span class="c1">//在这里阻塞，等待调度结果
+</span><span class="c1"></span>	<span class="nx">s</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">waitingPod</span><span class="p">.</span><span class="nx">s</span>
+	<span class="nx">metrics</span><span class="p">.</span><span class="nx">PermitWaitDuration</span><span class="p">.</span><span class="nf">WithLabelValues</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nf">Code</span><span class="p">().</span><span class="nf">String</span><span class="p">()).</span><span class="nf">Observe</span><span class="p">(</span><span class="nx">metrics</span><span class="p">.</span><span class="nf">SinceInSeconds</span><span class="p">(</span><span class="nx">startTime</span><span class="p">))</span>
+
+	<span class="k">if</span> <span class="p">!</span><span class="nx">s</span><span class="p">.</span><span class="nf">IsSuccess</span><span class="p">()</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">s</span><span class="p">.</span><span class="nf">IsUnschedulable</span><span class="p">()</span> <span class="p">{</span>
+			<span class="nx">msg</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;pod %q rejected while waiting on permit: %v&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">s</span><span class="p">.</span><span class="nf">Message</span><span class="p">())</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+			<span class="k">return</span> <span class="nf">NewStatus</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nf">Code</span><span class="p">(),</span> <span class="nx">msg</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">msg</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;error received while waiting on permit for pod %q: %v&#34;</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">s</span><span class="p">.</span><span class="nf">Message</span><span class="p">())</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">msg</span><span class="p">)</span>
+		<span class="k">return</span> <span class="nf">NewStatus</span><span class="p">(</span><span class="nx">Error</span><span class="p">,</span> <span class="nx">msg</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="k">return</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在这里具体返回结果需要看插件中<code>Permit</code>操作怎么实现的，我们可以简单看一下<code>coscheduling</code>怎么实现的批调度。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// Permit is the functions invoked by the framework at &#34;Permit&#34; extension point.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">cs</span> <span class="o">*</span><span class="nx">Coscheduling</span><span class="p">)</span> <span class="nf">Permit</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span> <span class="nx">state</span> <span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">CycleState</span><span class="p">,</span> <span class="nx">pod</span> <span class="o">*</span><span class="nx">v1</span><span class="p">.</span><span class="nx">Pod</span><span class="p">,</span> <span class="nx">nodeName</span> <span class="kt">string</span><span class="p">)</span> <span class="p">(</span><span class="o">*</span><span class="nx">framework</span><span class="p">.</span><span class="nx">Status</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Duration</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">pgInfo</span><span class="p">,</span> <span class="nx">_</span> <span class="o">:=</span> <span class="nx">cs</span><span class="p">.</span><span class="nf">getOrCreatePodGroupInfo</span><span class="p">(</span><span class="nx">pod</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Now</span><span class="p">())</span>
+	<span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nx">pgInfo</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="nx">framework</span><span class="p">.</span><span class="nf">NewStatus</span><span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">Success</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">),</span> <span class="mi">0</span>
+	<span class="p">}</span>
+
+	<span class="nx">namespace</span> <span class="o">:=</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span>
+	<span class="nx">podGroupName</span> <span class="o">:=</span> <span class="nx">pgInfo</span><span class="p">.</span><span class="nx">name</span>
+	<span class="nx">minAvailable</span> <span class="o">:=</span> <span class="nx">pgInfo</span><span class="p">.</span><span class="nx">minAvailable</span>
+	<span class="c1">// bound includes both assigned and assumed Pods.
+</span><span class="c1"></span>	<span class="nx">bound</span> <span class="o">:=</span> <span class="nx">cs</span><span class="p">.</span><span class="nf">calculateBoundPods</span><span class="p">(</span><span class="nx">podGroupName</span><span class="p">,</span> <span class="nx">namespace</span><span class="p">)</span>
+	<span class="c1">// The bound is calculated from the snapshot. The current pod does not exist in the snapshot during this scheduling cycle.
+</span><span class="c1"></span>	<span class="nx">current</span> <span class="o">:=</span> <span class="nx">bound</span> <span class="o">+</span> <span class="mi">1</span>
+
+	<span class="k">if</span> <span class="nx">current</span> <span class="p">&lt;</span> <span class="nx">minAvailable</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;The count of podGroup %v/%v/%v is not up to minAvailable(%d) in Permit: current(%d)&#34;</span><span class="p">,</span>
+			<span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">podGroupName</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">minAvailable</span><span class="p">,</span> <span class="nx">current</span><span class="p">)</span>
+		<span class="c1">// TODO Change the timeout to a dynamic value depending on the size of the `PodGroup`
+</span><span class="c1"></span>		<span class="k">return</span> <span class="nx">framework</span><span class="p">.</span><span class="nf">NewStatus</span><span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">Wait</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">),</span> <span class="nx">time</span><span class="p">.</span><span class="nf">Duration</span><span class="p">(</span><span class="nx">cs</span><span class="p">.</span><span class="nx">args</span><span class="p">.</span><span class="nx">PermitWaitingTimeSeconds</span><span class="p">)</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span>
+	<span class="p">}</span>
+
+	<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;The count of PodGroup %v/%v/%v is up to minAvailable(%d) in Permit: current(%d)&#34;</span><span class="p">,</span>
+		<span class="nx">pod</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">podGroupName</span><span class="p">,</span> <span class="nx">pod</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">minAvailable</span><span class="p">,</span> <span class="nx">current</span><span class="p">)</span>
+	<span class="nx">cs</span><span class="p">.</span><span class="nx">frameworkHandle</span><span class="p">.</span><span class="nf">IterateOverWaitingPods</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">waitingPod</span> <span class="nx">framework</span><span class="p">.</span><span class="nx">WaitingPod</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">waitingPod</span><span class="p">.</span><span class="nf">GetPod</span><span class="p">().</span><span class="nx">Namespace</span> <span class="o">==</span> <span class="nx">namespace</span> <span class="o">&amp;&amp;</span> <span class="nx">waitingPod</span><span class="p">.</span><span class="nf">GetPod</span><span class="p">().</span><span class="nx">Labels</span><span class="p">[</span><span class="nx">PodGroupName</span><span class="p">]</span> <span class="o">==</span> <span class="nx">podGroupName</span> <span class="p">{</span>
+			<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">3</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Permit allows the pod: %v/%v&#34;</span><span class="p">,</span> <span class="nx">podGroupName</span><span class="p">,</span> <span class="nx">waitingPod</span><span class="p">.</span><span class="nf">GetPod</span><span class="p">().</span><span class="nx">Name</span><span class="p">)</span>
+			<span class="nx">waitingPod</span><span class="p">.</span><span class="nf">Allow</span><span class="p">(</span><span class="nx">cs</span><span class="p">.</span><span class="nf">Name</span><span class="p">())</span>
+		<span class="p">}</span>
+	<span class="p">})</span>
+
+	<span class="k">return</span> <span class="nx">framework</span><span class="p">.</span><span class="nf">NewStatus</span><span class="p">(</span><span class="nx">framework</span><span class="p">.</span><span class="nx">Success</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">),</span> <span class="mi">0</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在<code>coscheduling</code>代码实现，通过<code>calculateBoundPods</code>计算每个groupName在整个集群的pod数量有多少，是否已经满足最小的需求，如果是则通过<code>waitingPod.Allow</code>来通知前面的<code>channel</code>完成调度，否则则会返回<code>Wait</code>状态码。<br>
+完成了Permit操作之后还需要检查是否所有的volume都已经完成绑定，如果没有还需要再进行绑定，这里会直接调用k8s的API进行相关的绑定操作。<br>
+接下来进入<code>PreBind</code>，<code>Bind</code>, <code>PostBind</code>阶段。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2020-10-07 18:03
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/kube-scheduler/">kube-scheduler</a>
+          </div>
+      <nav class="post-nav">
+        <a class="prev" href="/post/kube-scheduler-%E5%9B%9B/">
+            <i class="iconfont icon-left"></i>
+            <span class="prev-text nav-default">[Kubernetes] kube-scheduler源码分析(四)</span>
+            <span class="prev-text nav-mobile">上一篇</span>
+          </a>
+        <a class="next" href="/post/kube-scheduler-%E4%BA%8C/">
+            <span class="next-text nav-default">[Kubernetes] kube-scheduler源码分析(二)</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        
+
+  
+
+  
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="756495135@qq.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
