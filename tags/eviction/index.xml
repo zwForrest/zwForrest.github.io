@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>eviction on Welcome to zForrest</title>
+    <link>https://zwForrest.github.io/tags/eviction/</link>
+    <description>Recent content in eviction on Welcome to zForrest</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-CN</language>
+    <lastBuildDate>Mon, 01 Mar 2021 16:37:56 +0800</lastBuildDate>
+    
+	<atom:link href="https://zwForrest.github.io/tags/eviction/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>[Kubernetes] Eviction Manager工作原理分析</title>
+      <link>https://zwForrest.github.io/post/eviction-manager%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/</link>
+      <pubDate>Mon, 01 Mar 2021 16:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/eviction-manager%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/</guid>
+      <description>为了避免资源使用太多造成机器资源不够最终影响服务质量，kubelet提供Eviction功能，用户可以通过配置soft和hard阈值等相关参</description>
+    </item>
+    
+  </channel>
+</rss>

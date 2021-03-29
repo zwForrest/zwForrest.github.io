@@ -6,10 +6,64 @@
     <description>Recent content in Tags on Welcome to zForrest</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-CN</language>
-    <lastBuildDate>Fri, 09 Oct 2020 18:03:56 +0800</lastBuildDate>
+    <lastBuildDate>Wed, 10 Mar 2021 16:37:56 +0800</lastBuildDate>
     
 	<atom:link href="https://zwForrest.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>HPA</title>
+      <link>https://zwForrest.github.io/tags/hpa/</link>
+      <pubDate>Wed, 10 Mar 2021 16:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/hpa/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kube-controller-manager</title>
+      <link>https://zwForrest.github.io/tags/kube-controller-manager/</link>
+      <pubDate>Wed, 10 Mar 2021 16:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kube-controller-manager/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kubernetes</title>
+      <link>https://zwForrest.github.io/tags/kubernetes/</link>
+      <pubDate>Wed, 10 Mar 2021 16:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kubernetes/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>eviction</title>
+      <link>https://zwForrest.github.io/tags/eviction/</link>
+      <pubDate>Mon, 01 Mar 2021 16:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/eviction/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kubelet</title>
+      <link>https://zwForrest.github.io/tags/kubelet/</link>
+      <pubDate>Mon, 01 Mar 2021 16:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/kubelet/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>containerManager</title>
+      <link>https://zwForrest.github.io/tags/containermanager/</link>
+      <pubDate>Thu, 28 Jan 2021 11:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/tags/containermanager/</guid>
+      <description></description>
+    </item>
     
     <item>
       <title>kube-scheduler</title>
@@ -17,15 +71,6 @@
       <pubDate>Fri, 09 Oct 2020 18:03:56 +0800</pubDate>
       
       <guid>https://zwForrest.github.io/tags/kube-scheduler/</guid>
-      <description></description>
-    </item>
-    
-    <item>
-      <title>kubernetes</title>
-      <link>https://zwForrest.github.io/tags/kubernetes/</link>
-      <pubDate>Fri, 09 Oct 2020 18:03:56 +0800</pubDate>
-      
-      <guid>https://zwForrest.github.io/tags/kubernetes/</guid>
       <description></description>
     </item>
     
@@ -71,15 +116,6 @@
       <pubDate>Tue, 11 Aug 2020 11:37:56 +0800</pubDate>
       
       <guid>https://zwForrest.github.io/tags/cri/</guid>
-      <description></description>
-    </item>
-    
-    <item>
-      <title>kubelet</title>
-      <link>https://zwForrest.github.io/tags/kubelet/</link>
-      <pubDate>Tue, 11 Aug 2020 11:37:56 +0800</pubDate>
-      
-      <guid>https://zwForrest.github.io/tags/kubelet/</guid>
       <description></description>
     </item>
     
@@ -143,15 +179,6 @@
       <pubDate>Mon, 18 May 2020 18:33:56 +0800</pubDate>
       
       <guid>https://zwForrest.github.io/tags/endpointcontroller/</guid>
-      <description></description>
-    </item>
-    
-    <item>
-      <title>kube-controller-manager</title>
-      <link>https://zwForrest.github.io/tags/kube-controller-manager/</link>
-      <pubDate>Mon, 18 May 2020 18:33:56 +0800</pubDate>
-      
-      <guid>https://zwForrest.github.io/tags/kube-controller-manager/</guid>
       <description></description>
     </item>
     

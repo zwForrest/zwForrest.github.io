@@ -6,10 +6,19 @@
     <description>Recent content in kube-controller-manager on Welcome to zForrest</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-CN</language>
-    <lastBuildDate>Mon, 18 May 2020 18:33:56 +0800</lastBuildDate>
+    <lastBuildDate>Wed, 10 Mar 2021 16:37:56 +0800</lastBuildDate>
     
 	<atom:link href="https://zwForrest.github.io/tags/kube-controller-manager/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>[Kubernetes] V2beta2版本HPA分析</title>
+      <link>https://zwForrest.github.io/post/v2beta2%E7%89%88%E6%9C%AChpa/</link>
+      <pubDate>Wed, 10 Mar 2021 16:37:56 +0800</pubDate>
+      
+      <guid>https://zwForrest.github.io/post/v2beta2%E7%89%88%E6%9C%AChpa/</guid>
+      <description>HPA全称是Horizontal Pod Autoscaler，是k8s集群对负载的弹性扩缩容机制，这里将介绍一下基于1.18版本的HPA过程。 1 2</description>
+    </item>
     
     <item>
       <title>[Kubernetes] EndpointController源码分析</title>

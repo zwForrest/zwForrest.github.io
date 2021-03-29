@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>[Kubernetes] V2beta2版本HPA分析 - Welcome to zForrest</title>
+  <meta name="renderer" content="webkit" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+<meta name="theme-color" content="#f8f5ec" />
+<meta name="msapplication-navbutton-color" content="#f8f5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="#f8f5ec">
+
+
+<meta name="author" content="zForrest" /><meta name="description" content="HPA全称是Horizontal Pod Autoscaler，是k8s集群对负载的弹性扩缩容机制，这里将介绍一下基于1.18版本的HPA过程。 1 2" /><meta name="keywords" content="Hugo, theme, Forrest" />
+
+
+
+
+
+
+<meta name="generator" content="Hugo 0.74.3 with theme even" />
+
+
+<link rel="canonical" href="https://zwForrest.github.io/post/v2beta2%E7%89%88%E6%9C%AChpa/" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+
+
+
+<link href="/sass/main.min.8c3cbcb0324c2bb4875ceccba4007cbad4b4ac8377f33af9953c3e7684534a50.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.css" integrity="sha256-7TyXnr2YU040zfSP+rEcz29ggW4j56/ujTPwjMzyqFY=" crossorigin="anonymous">
+
+
+<meta property="og:title" content="[Kubernetes] V2beta2版本HPA分析" />
+<meta property="og:description" content="HPA全称是Horizontal Pod Autoscaler，是k8s集群对负载的弹性扩缩容机制，这里将介绍一下基于1.18版本的HPA过程。 1 2" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zwForrest.github.io/post/v2beta2%E7%89%88%E6%9C%AChpa/" />
+<meta property="article:published_time" content="2021-03-10T16:37:56+08:00" />
+<meta property="article:modified_time" content="2021-03-10T16:37:56+08:00" />
+<meta itemprop="name" content="[Kubernetes] V2beta2版本HPA分析">
+<meta itemprop="description" content="HPA全称是Horizontal Pod Autoscaler，是k8s集群对负载的弹性扩缩容机制，这里将介绍一下基于1.18版本的HPA过程。 1 2">
+<meta itemprop="datePublished" content="2021-03-10T16:37:56+08:00" />
+<meta itemprop="dateModified" content="2021-03-10T16:37:56+08:00" />
+<meta itemprop="wordCount" content="4604">
+
+
+
+<meta itemprop="keywords" content="kubernetes,HPA,kube-controller-manager," />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="[Kubernetes] V2beta2版本HPA分析"/>
+<meta name="twitter:description" content="HPA全称是Horizontal Pod Autoscaler，是k8s集群对负载的弹性扩缩容机制，这里将介绍一下基于1.18版本的HPA过程。 1 2"/>
+
+<!--[if lte IE 9]>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/classlist/1.1.20170427/classList.min.js"></script>
+<![endif]-->
+
+<!--[if lt IE 9]>
+  <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+<![endif]-->
+
+</head>
+<body>
+  <div id="mobile-navbar" class="mobile-navbar">
+  <div class="mobile-header-logo">
+    <a href="/" class="logo">云原生</a>
+  </div>
+  <div class="mobile-navbar-icon">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+</div>
+<nav id="mobile-menu" class="mobile-menu slideout-menu">
+  <ul class="mobile-menu-list">
+    <a href="/">
+        <li class="mobile-menu-item">Home</li>
+      </a><a href="/post/">
+        <li class="mobile-menu-item">Archives</li>
+      </a><a href="/tags/">
+        <li class="mobile-menu-item">Tags</li>
+      </a><a href="/categories/">
+        <li class="mobile-menu-item">Categories</li>
+      </a><a href="/about/">
+        <li class="mobile-menu-item">About</li>
+      </a>
+  </ul>
+</nav>
+  <div class="container" id="mobile-panel">
+    <header id="header" class="header">
+        <div class="logo-wrapper">
+  <a href="/" class="logo">云原生</a>
+</div>
+
+<nav class="site-navbar">
+  <ul id="menu" class="menu">
+    <li class="menu-item">
+        <a class="menu-item-link" href="/">Home</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/post/">Archives</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/tags/">Tags</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/categories/">Categories</a>
+      </li><li class="menu-item">
+        <a class="menu-item-link" href="/about/">About</a>
+      </li>
+  </ul>
+</nav>
+    </header>
+
+    <main id="main" class="main">
+      <div class="content-wrapper">
+        <div id="content" class="content">
+          <article class="post">
+    
+    <header class="post-header">
+      <h1 class="post-title">[Kubernetes] V2beta2版本HPA分析</h1>
+
+      <div class="post-meta">
+        <span class="post-time"> 2021-03-10 16:37 </span>
+        <div class="post-category">
+            <a href="/categories/%E4%BA%91%E5%8E%9F%E7%94%9F/"> 云原生 </a>
+            </div>
+          <span class="more-meta"> 约 4604 字 </span>
+          <span class="more-meta"> 预计阅读 10 分钟 </span>
+        
+      </div>
+    </header>
+
+    <div class="post-toc" id="post-toc">
+  <h2 class="post-toc-title">文章目录</h2>
+  <div class="post-toc-content always-active">
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#事件处理">事件处理</a></li>
+    <li><a href="#metrics-type">Metrics Type</a></li>
+    <li><a href="#behavior">behavior</a></li>
+    <li><a href="#scale">Scale</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+  </div>
+</div>
+    <div class="post-content">
+      <p>HPA全称是<code>Horizontal Pod Autoscaler</code>，是k8s集群对负载的弹性扩缩容机制，这里将介绍一下基于1.18版本的HPA过程。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nf">startHPAController</span><span class="p">(</span><span class="nx">ctx</span> <span class="nx">ControllerContext</span><span class="p">)</span> <span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">Handler</span><span class="p">,</span> <span class="kt">bool</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">!</span><span class="nx">ctx</span><span class="p">.</span><span class="nx">AvailableResources</span><span class="p">[</span><span class="nx">schema</span><span class="p">.</span><span class="nx">GroupVersionResource</span><span class="p">{</span><span class="nx">Group</span><span class="p">:</span> <span class="s">&#34;autoscaling&#34;</span><span class="p">,</span> <span class="nx">Version</span><span class="p">:</span> <span class="s">&#34;v1&#34;</span><span class="p">,</span> <span class="nx">Resource</span><span class="p">:</span> <span class="s">&#34;horizontalpodautoscalers&#34;</span><span class="p">}]</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="kc">false</span><span class="p">,</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+
+	<span class="k">if</span> <span class="nx">ctx</span><span class="p">.</span><span class="nx">ComponentConfig</span><span class="p">.</span><span class="nx">HPAController</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerUseRESTClients</span> <span class="p">{</span>
+		<span class="c1">// use the new-style clients if support for custom metrics is enabled
+</span><span class="c1"></span>		<span class="k">return</span> <span class="nf">startHPAControllerWithRESTClient</span><span class="p">(</span><span class="nx">ctx</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nf">startHPAControllerWithLegacyClient</span><span class="p">(</span><span class="nx">ctx</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在kube-controller-manager初始化了HPAController，这里主要分为两个类型的Client，<code>RESTClient</code>主要是基于custom metrics的client，LegacyClient则是基于Heapster metrics。
+RESTClient初始化包括了resourceclient, custommetrics client, external metrics client三种类型。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="nx">metricsClient</span> <span class="o">:=</span> <span class="nx">metrics</span><span class="p">.</span><span class="nf">NewRESTMetricsClient</span><span class="p">(</span>
+		<span class="nx">resourceclient</span><span class="p">.</span><span class="nf">NewForConfigOrDie</span><span class="p">(</span><span class="nx">clientConfig</span><span class="p">),</span>
+		<span class="nx">custom_metrics</span><span class="p">.</span><span class="nf">NewForConfig</span><span class="p">(</span><span class="nx">clientConfig</span><span class="p">,</span> <span class="nx">ctx</span><span class="p">.</span><span class="nx">RESTMapper</span><span class="p">,</span> <span class="nx">apiVersionsGetter</span><span class="p">),</span>
+		<span class="nx">external_metrics</span><span class="p">.</span><span class="nf">NewForConfigOrDie</span><span class="p">(</span><span class="nx">clientConfig</span><span class="p">),</span>
+	<span class="p">)</span>
+</code></pre></td></tr></table>
+</div>
+</div><h2 id="事件处理">事件处理</h2>
+<p>每次有HPA事件触发（Add,Update,Delete）都会将对应的hpa添加到对应的队列，然后触发<code>a.reconcileKey</code>执行扩缩容。如果事件不是删除则会在处理完时间之后在resync时间延迟将key重新加入队列。<br>
+<code>reconcileAutoscaler</code>完成hpa key操作。</p>
+<ul>
+<li>将v1版本的autoscale转换成v2版本；</li>
+<li>通过<code>schema.ParseGroupVersion(hpa.Spec.ScaleTargetRef.APIVersion)</code>解析需要扩缩容目标的GroupVersion；</li>
+<li>根据Group和Kind获取对应的resource mapping，然后由scale根据mapping获取集群中存在的资源，如果没有找到则会返回错误；</li>
+<li>设置Condition为<code>AbleToScale</code>，将该hpa的key添加到hpacontroller的<code>recommendation</code>；</li>
+<li>如果设置了minReplicas，则配置用户的minReplicas，否则将最小副本数设置为1；</li>
+<li>如果当前副本数为0，则不进行扩缩容；当前副本大于最大副本数，则将期望副本数设置为最大副本数；当前副本小于最小副本数，则将期望副本数设置为最小副本数；否则将根据Metrics计算期望副本数；
+<ul>
+<li><code>computeReplicasForMetrics</code>计算期望副本数，根据每个Metrics的配置进行计算，并且会将最大的副本数设置为期望副本数；
+<ul>
+<li><code>computeReplicasForMetric</code>计算每个Metrics的期望副本数，这里会根据不同的Metrics Type分别进行计算副本数，Type会分为<code>Object</code>, <code>Pods</code>, <code>Resource</code>, <code>External</code>，后面会进行分析；</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>根据是否需要recale进行副本数的扩缩容；</li>
+</ul>
+<h2 id="metrics-type">Metrics Type</h2>
+<p>metrics的类型在v2版本中可分为四种，分别是：<code>Object</code>, <code>Pods</code>, <code>Resource</code>, <code>External</code>。HPA在计算metric对应的副本时会按照对应的类型分别进行计算。</p>
+<ul>
+<li>Object<br>
+在类型为<code>Object</code>的时候会根据Value的类型再进行分类，可分为<code>Value</code>, <code>AverageValue</code>两种类型进行计算，</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// computeStatusForObjectMetric computes the desired number of replicas for the specified metric of type ObjectMetricSourceType.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">HorizontalController</span><span class="p">)</span> <span class="nf">computeStatusForObjectMetric</span><span class="p">(</span><span class="nx">specReplicas</span><span class="p">,</span> <span class="nx">statusReplicas</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">metricSpec</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricSpec</span><span class="p">,</span> <span class="nx">hpa</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscaler</span><span class="p">,</span> <span class="nx">selector</span> <span class="nx">labels</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span> <span class="nx">status</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">,</span> <span class="nx">metricSelector</span> <span class="nx">labels</span><span class="p">.</span><span class="nx">Selector</span><span class="p">)</span> <span class="p">(</span><span class="nx">replicas</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">timestamp</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">metricName</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">condition</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">Type</span> <span class="o">==</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ValueMetricType</span> <span class="p">{</span>
+		<span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">replicaCalc</span><span class="p">.</span><span class="nf">GetObjectMetricReplicas</span><span class="p">(</span><span class="nx">specReplicas</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">Value</span><span class="p">.</span><span class="nf">MilliValue</span><span class="p">(),</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">DescribedObject</span><span class="p">,</span> <span class="nx">selector</span><span class="p">,</span> <span class="nx">metricSelector</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">condition</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetObjectMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">err</span>
+		<span class="p">}</span>
+		<span class="o">*</span><span class="nx">status</span> <span class="p">=</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">{</span>
+			<span class="nx">Type</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ObjectMetricSourceType</span><span class="p">,</span>
+			<span class="nx">Object</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ObjectMetricStatus</span><span class="p">{</span>
+				<span class="nx">DescribedObject</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">DescribedObject</span><span class="p">,</span>
+				<span class="nx">Metric</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricIdentifier</span><span class="p">{</span>
+					<span class="nx">Name</span><span class="p">:</span>     <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+					<span class="nx">Selector</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span>
+				<span class="p">},</span>
+				<span class="nx">Current</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricValueStatus</span><span class="p">{</span>
+					<span class="nx">Value</span><span class="p">:</span> <span class="nx">resource</span><span class="p">.</span><span class="nf">NewMilliQuantity</span><span class="p">(</span><span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">resource</span><span class="p">.</span><span class="nx">DecimalSI</span><span class="p">),</span>
+				<span class="p">},</span>
+			<span class="p">},</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%s metric %s&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">DescribedObject</span><span class="p">.</span><span class="nx">Kind</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">),</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">{},</span> <span class="kc">nil</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">Type</span> <span class="o">==</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">AverageValueMetricType</span> <span class="p">{</span>
+		<span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">replicaCalc</span><span class="p">.</span><span class="nf">GetObjectPerPodMetricReplicas</span><span class="p">(</span><span class="nx">statusReplicas</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageValue</span><span class="p">.</span><span class="nf">MilliValue</span><span class="p">(),</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="o">&amp;</span><span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">DescribedObject</span><span class="p">,</span> <span class="nx">metricSelector</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">condition</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetObjectMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to get %s object metric: %v&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="o">*</span><span class="nx">status</span> <span class="p">=</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">{</span>
+			<span class="nx">Type</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ObjectMetricSourceType</span><span class="p">,</span>
+			<span class="nx">Object</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ObjectMetricStatus</span><span class="p">{</span>
+				<span class="nx">Metric</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricIdentifier</span><span class="p">{</span>
+					<span class="nx">Name</span><span class="p">:</span>     <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+					<span class="nx">Selector</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span>
+				<span class="p">},</span>
+				<span class="nx">Current</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricValueStatus</span><span class="p">{</span>
+					<span class="nx">AverageValue</span><span class="p">:</span> <span class="nx">resource</span><span class="p">.</span><span class="nf">NewMilliQuantity</span><span class="p">(</span><span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">resource</span><span class="p">.</span><span class="nx">DecimalSI</span><span class="p">),</span>
+				<span class="p">},</span>
+			<span class="p">},</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;external metric %s(%+v)&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Object</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">),</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">{},</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="nx">errMsg</span> <span class="o">:=</span> <span class="s">&#34;invalid object metric source: neither a value target nor an average value target was set&#34;</span>
+	<span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">errMsg</span><span class="p">)</span>
+	<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetObjectMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>Pods<br>
+Pods类型只支持<code>AverageValue</code>类型</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">HorizontalController</span><span class="p">)</span> <span class="nf">computeStatusForPodsMetric</span><span class="p">(</span><span class="nx">currentReplicas</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">metricSpec</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricSpec</span><span class="p">,</span> <span class="nx">hpa</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscaler</span><span class="p">,</span> <span class="nx">selector</span> <span class="nx">labels</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span> <span class="nx">status</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">,</span> <span class="nx">metricSelector</span> <span class="nx">labels</span><span class="p">.</span><span class="nx">Selector</span><span class="p">)</span> <span class="p">(</span><span class="nx">replicaCountProposal</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">timestampProposal</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">metricNameProposal</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">condition</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">replicaCalc</span><span class="p">.</span><span class="nf">GetMetricReplicas</span><span class="p">(</span><span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Pods</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageValue</span><span class="p">.</span><span class="nf">MilliValue</span><span class="p">(),</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Pods</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">selector</span><span class="p">,</span> <span class="nx">metricSelector</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetPodsMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">err</span>
+	<span class="p">}</span>
+	<span class="o">*</span><span class="nx">status</span> <span class="p">=</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">{</span>
+		<span class="nx">Type</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">PodsMetricSourceType</span><span class="p">,</span>
+		<span class="nx">Pods</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">PodsMetricStatus</span><span class="p">{</span>
+			<span class="nx">Metric</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricIdentifier</span><span class="p">{</span>
+				<span class="nx">Name</span><span class="p">:</span>     <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Pods</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+				<span class="nx">Selector</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Pods</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span>
+			<span class="p">},</span>
+			<span class="nx">Current</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricValueStatus</span><span class="p">{</span>
+				<span class="nx">AverageValue</span><span class="p">:</span> <span class="nx">resource</span><span class="p">.</span><span class="nf">NewMilliQuantity</span><span class="p">(</span><span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">resource</span><span class="p">.</span><span class="nx">DecimalSI</span><span class="p">),</span>
+			<span class="p">},</span>
+		<span class="p">},</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;pods metric %s&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Pods</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">),</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">{},</span> <span class="kc">nil</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>Resource<br>
+Resource类型则支持<code>AverageValue</code>和<code>AverageUtilization</code>两种。根据用户的定义获取对应的metric，</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span><span class="lnt">47
+</span><span class="lnt">48
+</span><span class="lnt">49
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// computeStatusForResourceMetric computes the desired number of replicas for the specified metric of type ResourceMetricSourceType.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">HorizontalController</span><span class="p">)</span> <span class="nf">computeStatusForResourceMetric</span><span class="p">(</span><span class="nx">currentReplicas</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">metricSpec</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricSpec</span><span class="p">,</span> <span class="nx">hpa</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscaler</span><span class="p">,</span> <span class="nx">selector</span> <span class="nx">labels</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span> <span class="nx">status</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">)</span> <span class="p">(</span><span class="nx">replicaCountProposal</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">timestampProposal</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">metricNameProposal</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">condition</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageValue</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="kd">var</span> <span class="nx">rawProposal</span> <span class="kt">int64</span>
+		<span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">rawProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">replicaCalc</span><span class="p">.</span><span class="nf">GetRawResourceReplicas</span><span class="p">(</span><span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageValue</span><span class="p">.</span><span class="nf">MilliValue</span><span class="p">(),</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">selector</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetResourceMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to get %s utilization: %v&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">metricNameProposal</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%s resource&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+		<span class="o">*</span><span class="nx">status</span> <span class="p">=</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">{</span>
+			<span class="nx">Type</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ResourceMetricSourceType</span><span class="p">,</span>
+			<span class="nx">Resource</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ResourceMetricStatus</span><span class="p">{</span>
+				<span class="nx">Name</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+				<span class="nx">Current</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricValueStatus</span><span class="p">{</span>
+					<span class="nx">AverageValue</span><span class="p">:</span> <span class="nx">resource</span><span class="p">.</span><span class="nf">NewMilliQuantity</span><span class="p">(</span><span class="nx">rawProposal</span><span class="p">,</span> <span class="nx">resource</span><span class="p">.</span><span class="nx">DecimalSI</span><span class="p">),</span>
+				<span class="p">},</span>
+			<span class="p">},</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">metricNameProposal</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">{},</span> <span class="kc">nil</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageUtilization</span> <span class="o">==</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">errMsg</span> <span class="o">:=</span> <span class="s">&#34;invalid resource metric source: neither a utilization target nor a value target was set&#34;</span>
+			<span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">errMsg</span><span class="p">)</span>
+			<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetResourceMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">errMsg</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">targetUtilization</span> <span class="o">:=</span> <span class="o">*</span><span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageUtilization</span>
+		<span class="kd">var</span> <span class="nx">percentageProposal</span> <span class="kt">int32</span>
+		<span class="kd">var</span> <span class="nx">rawProposal</span> <span class="kt">int64</span>
+		<span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">percentageProposal</span><span class="p">,</span> <span class="nx">rawProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">replicaCalc</span><span class="p">.</span><span class="nf">GetResourceReplicas</span><span class="p">(</span><span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">targetUtilization</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">selector</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetResourceMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to get %s utilization: %v&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nx">metricNameProposal</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%s resource utilization (percentage of request)&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">)</span>
+		<span class="o">*</span><span class="nx">status</span> <span class="p">=</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">{</span>
+			<span class="nx">Type</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ResourceMetricSourceType</span><span class="p">,</span>
+			<span class="nx">Resource</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ResourceMetricStatus</span><span class="p">{</span>
+				<span class="nx">Name</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">Resource</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+				<span class="nx">Current</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricValueStatus</span><span class="p">{</span>
+					<span class="nx">AverageUtilization</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">percentageProposal</span><span class="p">,</span>
+					<span class="nx">AverageValue</span><span class="p">:</span>       <span class="nx">resource</span><span class="p">.</span><span class="nf">NewMilliQuantity</span><span class="p">(</span><span class="nx">rawProposal</span><span class="p">,</span> <span class="nx">resource</span><span class="p">.</span><span class="nx">DecimalSI</span><span class="p">),</span>
+				<span class="p">},</span>
+			<span class="p">},</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">metricNameProposal</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">{},</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>External<br>
+external类型也支持两种类型<code>AverageValue</code>和<code>Value</code>。</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span><span class="lnt">40
+</span><span class="lnt">41
+</span><span class="lnt">42
+</span><span class="lnt">43
+</span><span class="lnt">44
+</span><span class="lnt">45
+</span><span class="lnt">46
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">HorizontalController</span><span class="p">)</span> <span class="nf">computeStatusForExternalMetric</span><span class="p">(</span><span class="nx">specReplicas</span><span class="p">,</span> <span class="nx">statusReplicas</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">metricSpec</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricSpec</span><span class="p">,</span> <span class="nx">hpa</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscaler</span><span class="p">,</span> <span class="nx">selector</span> <span class="nx">labels</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span> <span class="nx">status</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">)</span> <span class="p">(</span><span class="nx">replicaCountProposal</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">timestampProposal</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">metricNameProposal</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">condition</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageValue</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">replicaCalc</span><span class="p">.</span><span class="nf">GetExternalPerPodMetricReplicas</span><span class="p">(</span><span class="nx">statusReplicas</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">AverageValue</span><span class="p">.</span><span class="nf">MilliValue</span><span class="p">(),</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetExternalMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to get %s external metric: %v&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="o">*</span><span class="nx">status</span> <span class="p">=</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">{</span>
+			<span class="nx">Type</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ExternalMetricSourceType</span><span class="p">,</span>
+			<span class="nx">External</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ExternalMetricStatus</span><span class="p">{</span>
+				<span class="nx">Metric</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricIdentifier</span><span class="p">{</span>
+					<span class="nx">Name</span><span class="p">:</span>     <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+					<span class="nx">Selector</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span>
+				<span class="p">},</span>
+				<span class="nx">Current</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricValueStatus</span><span class="p">{</span>
+					<span class="nx">AverageValue</span><span class="p">:</span> <span class="nx">resource</span><span class="p">.</span><span class="nf">NewMilliQuantity</span><span class="p">(</span><span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">resource</span><span class="p">.</span><span class="nx">DecimalSI</span><span class="p">),</span>
+				<span class="p">},</span>
+			<span class="p">},</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;external metric %s(%+v)&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">),</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">{},</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="k">if</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">Value</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">replicaCalc</span><span class="p">.</span><span class="nf">GetExternalMetricReplicas</span><span class="p">(</span><span class="nx">specReplicas</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Target</span><span class="p">.</span><span class="nx">Value</span><span class="p">.</span><span class="nf">MilliValue</span><span class="p">(),</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span> <span class="nx">selector</span><span class="p">)</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetExternalMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to get external metric %s: %v&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="o">*</span><span class="nx">status</span> <span class="p">=</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricStatus</span><span class="p">{</span>
+			<span class="nx">Type</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ExternalMetricSourceType</span><span class="p">,</span>
+			<span class="nx">External</span><span class="p">:</span> <span class="o">&amp;</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ExternalMetricStatus</span><span class="p">{</span>
+				<span class="nx">Metric</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricIdentifier</span><span class="p">{</span>
+					<span class="nx">Name</span><span class="p">:</span>     <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span>
+					<span class="nx">Selector</span><span class="p">:</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">,</span>
+				<span class="p">},</span>
+				<span class="nx">Current</span><span class="p">:</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">MetricValueStatus</span><span class="p">{</span>
+					<span class="nx">Value</span><span class="p">:</span> <span class="nx">resource</span><span class="p">.</span><span class="nf">NewMilliQuantity</span><span class="p">(</span><span class="nx">utilizationProposal</span><span class="p">,</span> <span class="nx">resource</span><span class="p">.</span><span class="nx">DecimalSI</span><span class="p">),</span>
+				<span class="p">},</span>
+			<span class="p">},</span>
+		<span class="p">}</span>
+		<span class="k">return</span> <span class="nx">replicaCountProposal</span><span class="p">,</span> <span class="nx">timestampProposal</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;external metric %s(%+v)&#34;</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">metricSpec</span><span class="p">.</span><span class="nx">External</span><span class="p">.</span><span class="nx">Metric</span><span class="p">.</span><span class="nx">Selector</span><span class="p">),</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscalerCondition</span><span class="p">{},</span> <span class="kc">nil</span>
+	<span class="p">}</span>
+	<span class="nx">errMsg</span> <span class="o">:=</span> <span class="s">&#34;invalid external metric source: neither a value target nor an average value target was set&#34;</span>
+	<span class="nx">err</span> <span class="p">=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">errMsg</span><span class="p">)</span>
+	<span class="nx">condition</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">getUnableComputeReplicaCountCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="s">&#34;FailedGetExternalMetric&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="s">&#34;&#34;</span><span class="p">,</span> <span class="nx">condition</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="nx">errMsg</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>以上四种类型的Metrics type，和Target type之间的对应关系可以总结为下表格。</p>
+<table>
+<thead>
+<tr>
+<th align="center">MetricsType</th>
+<th align="center">AverageUtilization</th>
+<th align="center">AverageValue</th>
+<th align="center">Value</th>
+<th align="center">场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">Object</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">监控指标不是由Pod本身提供，而是由k8s集群中的其他资源提供Metrics查询，比如ingress等</td>
+</tr>
+<tr>
+<td align="center">Pods</td>
+<td align="center">No</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">CPU，memory之外的有Pod提供的自定义metrics，如用户自定义metrics</td>
+</tr>
+<tr>
+<td align="center">Resource</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">No</td>
+<td align="center">K8s的pod的所有系统资源（包括CPU，Memory等），一般只会用于CPU，Memory和语言类相关（GC）</td>
+</tr>
+<tr>
+<td align="center">External</td>
+<td align="center">NO</td>
+<td align="center">Yes</td>
+<td align="center">Yes</td>
+<td align="center">来源和K8s无关的外部监控指标</td>
+</tr>
+</tbody>
+</table>
+<p>根据以上四种类型的Metrics Type这里针对Resource类型进行分析。在v2版本中用户可以填写多个不同的Metrics，HPA会针对每个Metrics都进行计算，然后选取副本数最大的那个进行扩缩容。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// GetRawResourceReplicas calculates the desired replica count based on a target resource utilization (as a raw milli-value)
+</span><span class="c1">// for pods matching the given selector in the given namespace, and the current replica count
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">c</span> <span class="o">*</span><span class="nx">ReplicaCalculator</span><span class="p">)</span> <span class="nf">GetRawResourceReplicas</span><span class="p">(</span><span class="nx">currentReplicas</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">targetUtilization</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">resource</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">ResourceName</span><span class="p">,</span> <span class="nx">namespace</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">selector</span> <span class="nx">labels</span><span class="p">.</span><span class="nx">Selector</span><span class="p">)</span> <span class="p">(</span><span class="nx">replicaCount</span> <span class="kt">int32</span><span class="p">,</span> <span class="nx">utilization</span> <span class="kt">int64</span><span class="p">,</span> <span class="nx">timestamp</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+	<span class="nx">metrics</span><span class="p">,</span> <span class="nx">timestamp</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">c</span><span class="p">.</span><span class="nx">metricsClient</span><span class="p">.</span><span class="nf">GetResourceMetric</span><span class="p">(</span><span class="nx">resource</span><span class="p">,</span> <span class="nx">namespace</span><span class="p">,</span> <span class="nx">selector</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+		<span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Time</span><span class="p">{},</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;unable to get metrics for resource %s: %v&#34;</span><span class="p">,</span> <span class="nx">resource</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="nx">replicaCount</span><span class="p">,</span> <span class="nx">utilization</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">c</span><span class="p">.</span><span class="nf">calcPlainMetricReplicas</span><span class="p">(</span><span class="nx">metrics</span><span class="p">,</span> <span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">targetUtilization</span><span class="p">,</span> <span class="nx">namespace</span><span class="p">,</span> <span class="nx">selector</span><span class="p">,</span> <span class="nx">resource</span><span class="p">)</span>
+	<span class="k">return</span> <span class="nx">replicaCount</span><span class="p">,</span> <span class="nx">utilization</span><span class="p">,</span> <span class="nx">timestamp</span><span class="p">,</span> <span class="nx">err</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>在获取resource的类型时会分为<code>AverageValue</code>和<code>AverageUtilization</code>两种。先看AverageValue类型，在<code>GetRawResourceReplicas</code>通过GetResourceMetric获取每个pod的所有container的对应资源的资源使用总和。然后通过<code>calcPlainMetricReplicas</code>计算需要副本数，包括以下工作。</p>
+<ul>
+<li>根据selector获取所有符合条件的Pod;</li>
+<li>根据pod进行分类，如果pod处于删除或者Failed状态，则忽略；如果是Pending则加入<code>ignored</code>；如果pod在上面查找的Metrics结果中没有，则加入<code>missing</code>；如果资源类型是CPU，还会根据pod的状态和配置的启动延迟检查和延迟初始readiness来判断pod是否加入<code>ingored</code>;</li>
+<li>将ignoredPods从Metrics结果中移除；</li>
+<li>通过GetMetricUtilizationRatio获取当前资源利用率以及当前资源利用率和目标资源利用率的比值。通过将所有的pod资源使用量相加/metrics pod数量，然后用这个值除以目标利用率得到比率Ratio；</li>
+<li>rebalanceIgnored=处于pending状态的pod或者因为延迟检查的pod数量大于0 &amp;&amp; 需要扩容；</li>
+</ul>
+<ul>
+<li>如果没有ignore和missingPod，
+<ul>
+<li>如果Ratio-1的绝对值小于等于设定的tolerace，则返回当前副本数；</li>
+<li>如果大于tolerace，则返回Ratio*当前ReadyPod数量，还需要返回当前利用率；</li>
+</ul>
+</li>
+<li>如果missing大于0；
+<ul>
+<li>Ratio &lt; 1，此时需要缩容，将missingpod的Metrics看做是100%的资源使用，即value等于targetUtilization;</li>
+<li>Ratio &gt;= 1，此时需要扩容，则将missingPod的Metrics看做0%的资源使用，即value等于0；</li>
+</ul>
+</li>
+<li>如果需要扩容，并且ignoredpod&gt;0，则将ignorepod的Metrics设置为0,</li>
+</ul>
+<ul>
+<li>根据上面设置的Metrics重新计算Ratio，然后计算最终副本数；
+每个MetricsType都会计算一次，最终取最大值。</li>
+</ul>
+<h2 id="behavior">behavior</h2>
+<p>上面计算之后的结果需要根据用户是否定义behavior来决定最后的操作。如果没有设定behavior，则由<code>normalizeDesiredReplicas</code>来判定最终的副本数，如果设置了behavior，则根据behavior具体计算副本数。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go"><span class="c1">// normalizeDesiredReplicasWithBehaviors takes the metrics desired replicas value and normalizes it:
+</span><span class="c1">// 1. Apply the basic conditions (i.e. &lt; maxReplicas, &gt; minReplicas, etc...)
+</span><span class="c1">// 2. Apply the scale up/down limits from the hpaSpec.Behaviors (i.e. add no more than 4 pods)
+</span><span class="c1">// 3. Apply the constraints period (i.e. add no more than 4 pods per minute)
+</span><span class="c1">// 4. Apply the stabilization (i.e. add no more than 4 pods per minute, and pick the smallest recommendation during last 5 minutes)
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">a</span> <span class="o">*</span><span class="nx">HorizontalController</span><span class="p">)</span> <span class="nf">normalizeDesiredReplicasWithBehaviors</span><span class="p">(</span><span class="nx">hpa</span> <span class="o">*</span><span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">HorizontalPodAutoscaler</span><span class="p">,</span> <span class="nx">key</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">prenormalizedDesiredReplicas</span><span class="p">,</span> <span class="nx">minReplicas</span> <span class="kt">int32</span><span class="p">)</span> <span class="kt">int32</span> <span class="p">{</span>
+	<span class="nx">a</span><span class="p">.</span><span class="nf">maybeInitScaleDownStabilizationWindow</span><span class="p">(</span><span class="nx">hpa</span><span class="p">)</span>
+	<span class="nx">normalizationArg</span> <span class="o">:=</span> <span class="nx">NormalizationArg</span><span class="p">{</span>
+		<span class="nx">Key</span><span class="p">:</span>               <span class="nx">key</span><span class="p">,</span>
+		<span class="nx">ScaleUpBehavior</span><span class="p">:</span>   <span class="nx">hpa</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">Behavior</span><span class="p">.</span><span class="nx">ScaleUp</span><span class="p">,</span>
+		<span class="nx">ScaleDownBehavior</span><span class="p">:</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">Behavior</span><span class="p">.</span><span class="nx">ScaleDown</span><span class="p">,</span>
+		<span class="nx">MinReplicas</span><span class="p">:</span>       <span class="nx">minReplicas</span><span class="p">,</span>
+		<span class="nx">MaxReplicas</span><span class="p">:</span>       <span class="nx">hpa</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">MaxReplicas</span><span class="p">,</span>
+		<span class="nx">CurrentReplicas</span><span class="p">:</span>   <span class="nx">currentReplicas</span><span class="p">,</span>
+		<span class="nx">DesiredReplicas</span><span class="p">:</span>   <span class="nx">prenormalizedDesiredReplicas</span><span class="p">}</span>
+	<span class="nx">stabilizedRecommendation</span><span class="p">,</span> <span class="nx">reason</span><span class="p">,</span> <span class="nx">message</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">stabilizeRecommendationWithBehaviors</span><span class="p">(</span><span class="nx">normalizationArg</span><span class="p">)</span>
+	<span class="nx">normalizationArg</span><span class="p">.</span><span class="nx">DesiredReplicas</span> <span class="p">=</span> <span class="nx">stabilizedRecommendation</span>
+	<span class="k">if</span> <span class="nx">stabilizedRecommendation</span> <span class="o">!=</span> <span class="nx">prenormalizedDesiredReplicas</span> <span class="p">{</span>
+		<span class="c1">// &#34;ScaleUpStabilized&#34; || &#34;ScaleDownStabilized&#34;
+</span><span class="c1"></span>		<span class="nf">setCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">AbleToScale</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">ConditionTrue</span><span class="p">,</span> <span class="nx">reason</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="nf">setCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">AbleToScale</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">ConditionTrue</span><span class="p">,</span> <span class="s">&#34;ReadyForNewScale&#34;</span><span class="p">,</span> <span class="s">&#34;recommended size matches current size&#34;</span><span class="p">)</span>
+	<span class="p">}</span>
+	<span class="nx">desiredReplicas</span><span class="p">,</span> <span class="nx">reason</span><span class="p">,</span> <span class="nx">message</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">convertDesiredReplicasWithBehaviorRate</span><span class="p">(</span><span class="nx">normalizationArg</span><span class="p">)</span>
+	<span class="k">if</span> <span class="nx">desiredReplicas</span> <span class="o">==</span> <span class="nx">stabilizedRecommendation</span> <span class="p">{</span>
+		<span class="nf">setCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ScalingLimited</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">ConditionFalse</span><span class="p">,</span> <span class="nx">reason</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="nf">setCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">ScalingLimited</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">ConditionTrue</span><span class="p">,</span> <span class="nx">reason</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="nx">desiredReplicas</span>
+<span class="p">}</span>
+</code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>如果设定了behavior并downStabilizationWindow没有设定则会会将HPA的downscaleStabilisationWindow设置成缩容窗口；</li>
+<li>通过<code>stabilizeRecommendationWithBehaviors</code>计算副本数；
+<ul>
+<li>根据扩容还是缩容配置delaySeconds和betterRecommendation；</li>
+<li>从recommendataions获取这个hpa的最近更改情况，如果在扩缩容周期内有调整则会返回当前的副本数，如果周期内没有修改则返回真实的需要的副本数；</li>
+<li>将本次修改添加到recommedataions；</li>
+</ul>
+</li>
+</ul>
+<h2 id="scale">Scale</h2>
+<p>根据Metrics计算出来的副本数和当前副本数不一样则进行扩缩容操作，并更新condition和status。</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-go" data-lang="go">  <span class="k">if</span> <span class="nx">rescale</span> <span class="p">{</span>
+		<span class="nx">scale</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">Replicas</span> <span class="p">=</span> <span class="nx">desiredReplicas</span>
+		<span class="nx">_</span><span class="p">,</span> <span class="nx">err</span> <span class="p">=</span> <span class="nx">a</span><span class="p">.</span><span class="nx">scaleNamespacer</span><span class="p">.</span><span class="nf">Scales</span><span class="p">(</span><span class="nx">hpa</span><span class="p">.</span><span class="nx">Namespace</span><span class="p">).</span><span class="nf">Update</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nf">TODO</span><span class="p">(),</span> <span class="nx">targetGR</span><span class="p">,</span> <span class="nx">scale</span><span class="p">,</span> <span class="nx">metav1</span><span class="p">.</span><span class="nx">UpdateOptions</span><span class="p">{})</span>
+		<span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+			<span class="nx">a</span><span class="p">.</span><span class="nx">eventRecorder</span><span class="p">.</span><span class="nf">Eventf</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">EventTypeWarning</span><span class="p">,</span> <span class="s">&#34;FailedRescale&#34;</span><span class="p">,</span> <span class="s">&#34;New size: %d; reason: %s; error: %v&#34;</span><span class="p">,</span> <span class="nx">desiredReplicas</span><span class="p">,</span> <span class="nx">rescaleReason</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">())</span>
+			<span class="nf">setCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">AbleToScale</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">ConditionFalse</span><span class="p">,</span> <span class="s">&#34;FailedUpdateScale&#34;</span><span class="p">,</span> <span class="s">&#34;the HPA controller was unable to update the target scale: %v&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+			<span class="nx">a</span><span class="p">.</span><span class="nf">setCurrentReplicasInStatus</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">currentReplicas</span><span class="p">)</span>
+			<span class="k">if</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">a</span><span class="p">.</span><span class="nf">updateStatusIfNeeded</span><span class="p">(</span><span class="nx">hpaStatusOriginal</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">);</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+				<span class="nx">utilruntime</span><span class="p">.</span><span class="nf">HandleError</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+			<span class="p">}</span>
+			<span class="k">return</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Errorf</span><span class="p">(</span><span class="s">&#34;failed to rescale %s: %v&#34;</span><span class="p">,</span> <span class="nx">reference</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+		<span class="p">}</span>
+		<span class="nf">setCondition</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">autoscalingv2</span><span class="p">.</span><span class="nx">AbleToScale</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">ConditionTrue</span><span class="p">,</span> <span class="s">&#34;SucceededRescale&#34;</span><span class="p">,</span> <span class="s">&#34;the HPA controller was able to update the target scale to %d&#34;</span><span class="p">,</span> <span class="nx">desiredReplicas</span><span class="p">)</span>
+		<span class="nx">a</span><span class="p">.</span><span class="nx">eventRecorder</span><span class="p">.</span><span class="nf">Eventf</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">v1</span><span class="p">.</span><span class="nx">EventTypeNormal</span><span class="p">,</span> <span class="s">&#34;SuccessfulRescale&#34;</span><span class="p">,</span> <span class="s">&#34;New size: %d; reason: %s&#34;</span><span class="p">,</span> <span class="nx">desiredReplicas</span><span class="p">,</span> <span class="nx">rescaleReason</span><span class="p">)</span>
+		<span class="nx">a</span><span class="p">.</span><span class="nf">storeScaleEvent</span><span class="p">(</span><span class="nx">hpa</span><span class="p">.</span><span class="nx">Spec</span><span class="p">.</span><span class="nx">Behavior</span><span class="p">,</span> <span class="nx">key</span><span class="p">,</span> <span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">desiredReplicas</span><span class="p">)</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;Successful rescale of %s, old size: %d, new size: %d, reason: %s&#34;</span><span class="p">,</span>
+			<span class="nx">hpa</span><span class="p">.</span><span class="nx">Name</span><span class="p">,</span> <span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">desiredReplicas</span><span class="p">,</span> <span class="nx">rescaleReason</span><span class="p">)</span>
+	<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+		<span class="nx">klog</span><span class="p">.</span><span class="nf">V</span><span class="p">(</span><span class="mi">4</span><span class="p">).</span><span class="nf">Infof</span><span class="p">(</span><span class="s">&#34;decided not to scale %s to %v (last scale time was %s)&#34;</span><span class="p">,</span> <span class="nx">reference</span><span class="p">,</span> <span class="nx">desiredReplicas</span><span class="p">,</span> <span class="nx">hpa</span><span class="p">.</span><span class="nx">Status</span><span class="p">.</span><span class="nx">LastScaleTime</span><span class="p">)</span>
+		<span class="nx">desiredReplicas</span> <span class="p">=</span> <span class="nx">currentReplicas</span>
+	<span class="p">}</span>
+
+	<span class="nx">a</span><span class="p">.</span><span class="nf">setStatus</span><span class="p">(</span><span class="nx">hpa</span><span class="p">,</span> <span class="nx">currentReplicas</span><span class="p">,</span> <span class="nx">desiredReplicas</span><span class="p">,</span> <span class="nx">metricStatuses</span><span class="p">,</span> <span class="nx">rescale</span><span class="p">)</span>
+</code></pre></td></tr></table>
+</div>
+</div><h2 id="总结">总结</h2>
+<p>到此HPA的功能流程已经分析完了，其中还有一些细节可以深究，可以后续再进行分析。
+v1.18以后的的HPA相比之前已经有了很大的灵活性，可以的单独控制一段时间内的扩缩容策略以此来保证服务的稳定性，但是目前还并非是GA版本，还有功能不完善，比如当前的reconcile只是单线程处理queue中的事件，如果涉及到的对象比较多的时候还是会有一些问题。目前也有一些开源项目在现有HPA的基础上进行了的扩展，比如开源项目KEDA，后面将会针对开源的keda进行分析。</p>
+
+    </div>
+
+    <div class="post-copyright">
+  <p class="copyright-item">
+    <span class="item-title">文章作者</span>
+    <span class="item-content">zForrest</span>
+  </p>
+  <p class="copyright-item">
+    <span class="item-title">上次更新</span>
+    <span class="item-content">
+        2021-03-10 16:37
+        
+    </span>
+  </p>
+  
+  
+</div>
+<footer class="post-footer">
+      <div class="post-tags">
+          <a href="/tags/kubernetes/">kubernetes</a>
+          <a href="/tags/hpa/">HPA</a>
+          <a href="/tags/kube-controller-manager/">kube-controller-manager</a>
+          </div>
+      <nav class="post-nav">
+        
+        <a class="next" href="/post/eviction-manager%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90/">
+            <span class="next-text nav-default">[Kubernetes] Eviction Manager工作原理分析</span>
+            <span class="next-text nav-mobile">下一篇</span>
+            <i class="iconfont icon-right"></i>
+          </a>
+      </nav>
+    </footer>
+  </article>
+        </div>
+        <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    (function() {
+      
+      
+      if (window.location.hostname === 'localhost') return;
+
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      var disqus_shortname = 'forrestzw comment';
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+  
+
+  
+    <script src="https://utteranc.es/client.js"
+            repo="zwForrest/comment"
+            issue-term="pathname"
+            theme="github-light"
+            crossorigin="anonymous"
+            async>
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="https://github.com/utterance">comments powered by utterances.</a></noscript>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="social-links">
+      <a href="756495135@qq.com" class="iconfont icon-email" title="email"></a>
+      <a href="http://localhost:1313" class="iconfont icon-google" title="google"></a>
+      <a href="http://localhost:1313" class="iconfont icon-github" title="github"></a>
+      <a href="http://localhost:1313" class="iconfont icon-weibo" title="weibo"></a>
+      <a href="http://localhost:1313" class="iconfont icon-zhihu" title="zhihu"></a>
+  <a href="https://zwForrest.github.io/index.xml" type="application/rss+xml" class="iconfont icon-rss" title="rss"></a>
+</div>
+
+<div class="copyright">
+  <span class="power-by">
+    由 <a class="hexo-link" href="https://gohugo.io">Hugo</a> 强力驱动
+  </span>
+  <span class="division">|</span>
+  <span class="theme-info">
+    主题 - 
+    <a class="theme-link" href="https://github.com/olOwOlo/hugo-theme-even">Even</a>
+  </span>
+
+  
+
+  <span class="copyright-year">
+    &copy; 
+    2020 - 
+    2021
+    <span class="heart">
+      <i class="iconfont icon-heart"></i>
+    </span>
+    <span class="author">zForrest</span>
+  </span>
+</div>
+    </footer>
+
+    <div class="back-to-top" id="back-to-top">
+      <i class="iconfont icon-up"></i>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/slideout@1.0.1/dist/slideout.min.js" integrity="sha256-t+zJ/g8/KXIJMjSVQdnibt4dlaDxc9zXr/9oNPeWqdg=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.1.20/dist/jquery.fancybox.min.js" integrity="sha256-XVLffZaxoWfGUEbdzuLi7pwaUJv1cecsQJQqGLe7axY=" crossorigin="anonymous"></script>
+
+
+
+<script type="text/javascript" src="/js/main.min.d7b7ada643c9c1a983026e177f141f7363b4640d619caf01d8831a6718cd44ea.js"></script>
+
+
+
+
+
+
+
+
+</body>
+</html>
